@@ -183,5 +183,9 @@ button.danger, .btn.danger { background: white; color: var(--bad); border: 1px s
 .flash.success { background: #dcf5e3; color: var(--good); }
 .flash.error { background: #fde2e1; color: var(--bad); }
 
+.card.warning { background: #fff8e8; border-color: #f0dca3; }
+.card.warning h3 { color: var(--warn); }
+.card.warning li { color: var(--ink); font-size: 14px; margin-bottom: 4px; }
+
 .muted { color: var(--muted); }
 .num { font-variant-numeric: tabular-nums; }

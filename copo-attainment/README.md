@@ -21,6 +21,9 @@ automatically instead of hand-wiring spreadsheet formulas.
 - Results: computed CO attainment (IA %, ASQM %, CIA %, External %, Exit
   Survey %, blended %, Level 0-3) and PO/PSO attainment (correlation-
   weighted average of CO levels).
+- Import from syllabus: upload a syllabus PDF and it pre-fills a new
+  course's subject code/name and Course Outcomes for you to review and
+  edit before anything is saved (see below).
 
 Deliberately **not** built yet (by design, see project discussion):
 bulk/CSV import of marks, gap analysis vs previous years, formatted
@@ -78,6 +81,31 @@ just tells you so instead of creating a duplicate. To reset the demo
 data, delete the course from within the app (or delete
 `instance/copo.db` to wipe everything) and run the script again.
 
+## Importing from a syllabus PDF
+
+On the courses list, "Import from syllabus" lets you upload a syllabus PDF
+instead of typing the subject code/name and Course Outcomes in by hand.
+It's tuned against the standard VTU-style layout: a Course Code/CIE/SEE
+table near the top of the document, and a "Course Outcomes" (or "Course
+outcome (Course Skill Set)") section listing CO1-CO5+ further down.
+
+This is a **best-effort extraction, not a guarantee** - syllabus PDFs
+aren't a fixed format, so nothing is saved straight from the upload.
+Instead, you land on a review screen with every field pre-filled but
+editable (institution/department/faculty/academic year are never in the
+syllabus, so those stay blank for you to fill in), plus a few spare blank
+CO rows in case the parser missed one. The course and its COs are only
+created once you click "Create course" there. If the parser can't find a
+section it expects, it says so in a warning banner rather than silently
+leaving something blank - you can still fill in everything by hand from
+that same screen.
+
+The parsing logic lives in `app/syllabus_import.py`, with two real sample
+syllabi (differently formatted) as regression tests in
+`tests/test_syllabus_import.py` - if you run this against a syllabus
+layout it doesn't handle well, the review screen is exactly what lets you
+fix it up rather than being stuck.
+
 ## Running the tests
 
 Tests need `pytest`, which is a dev-only dependency and lives in
@@ -93,8 +121,10 @@ python -m pytest tests/ -v
 `tests/test_engine.py` hand-verifies the calculation engine against a
 worked example using the exact arithmetic from the original spreadsheet.
 `tests/test_routes.py` exercises the actual web flow (create course -> COs
--> POs -> mapping -> structure -> roster -> marks -> results) through
-Flask's test client.
+-> POs -> mapping -> structure -> roster -> marks -> results, plus the
+syllabus-import upload/review/confirm flow) through Flask's test client.
+`tests/test_syllabus_import.py` checks the PDF parser directly against two
+real (differently-formatted) sample syllabi.
 
 ## How the calculation engine works
 
@@ -124,10 +154,14 @@ app/
     structure_routes.py - assessment item/question structure
     marks_routes.py     - student roster + marks/response entry
     results_routes.py   - computed CO/PO attainment
+    import_routes.py    - syllabus PDF upload -> review -> create course
+  syllabus_import.py - syllabus PDF text-extraction heuristics
   templates/        - Jinja2/HTML pages (no JS framework - plain forms)
   static/style.css  - all the styling
 tests/
-  test_engine.py    - calculation engine unit tests
-  test_routes.py    - end-to-end route/flow tests
+  test_engine.py           - calculation engine unit tests
+  test_routes.py           - end-to-end route/flow tests
+  test_syllabus_import.py  - syllabus PDF parser unit tests
+  fixtures/                - sample syllabus PDFs used by the tests above
 run.py              - entry point (`python run.py`)
 ```

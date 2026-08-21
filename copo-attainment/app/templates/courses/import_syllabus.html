@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Import from syllabus{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('setup.list_courses') }}">&larr; Back to courses</a>
+    <h1>Import from syllabus</h1>
+    <p class="subtitle">Upload a syllabus PDF and this will try to pull out the subject code, subject name, and Course Outcomes for you to review before the course is created.</p>
+
+    <form method="post" action="{{ url_for('import_syllabus.parse') }}" enctype="multipart/form-data" class="card">
+        <div class="field">
+            <label for="syllabus">Syllabus PDF</label>
+            <input type="file" id="syllabus" name="syllabus" accept="application/pdf" required>
+            <span class="hint">
+                Works best with the standard VTU-style layout: a Course Code/CIE/SEE table near the top, and a
+                "Course Outcomes" section listing CO1-CO5 (or similar). Other layouts may extract partially or
+                not at all - you'll get a chance to fix anything on the next screen, and nothing is saved until
+                you confirm it there.
+            </span>
+        </div>
+        <div class="btn-row">
+            <button type="submit">Extract from PDF</button>
+            <a class="btn secondary" href="{{ url_for('setup.list_courses') }}">Cancel</a>
+        </div>
+    </form>
+{% endblock %}

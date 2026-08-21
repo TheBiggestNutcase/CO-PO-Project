@@ -29,5 +29,8 @@
         {% endif %}
     </div>
 
-    <a class="btn" href="{{ url_for('setup.new_course') }}">+ New course</a>
+    <div class="btn-row" style="margin-top: 0;">
+        <a class="btn" href="{{ url_for('setup.new_course') }}">+ New course</a>
+        <a class="btn secondary" href="{{ url_for('import_syllabus.upload_form') }}">Import from syllabus</a>
+    </div>
 {% endblock %}

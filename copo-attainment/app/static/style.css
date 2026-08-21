@@ -187,5 +187,7 @@ button.danger, .btn.danger { background: white; color: var(--bad); border: 1px s
 .card.warning h3 { color: var(--warn); }
 .card.warning li { color: var(--ink); font-size: 14px; margin-bottom: 4px; }
 
+.card.highlight { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
 .muted { color: var(--muted); }
 .num { font-variant-numeric: tabular-nums; }

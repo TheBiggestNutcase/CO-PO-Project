@@ -141,3 +141,91 @@ def test_syllabus_import_rejects_non_pdf_upload(client):
     assert resp.status_code == 200
     assert b"doesn&#39;t look like a PDF" in resp.data or b"doesn't look like a PDF" in resp.data
     assert Course.query.count() == 0
+
+
+def test_roster_import_full_flow_imports_one_section_only(client):
+    """Upload -> review (one form per detected section) -> confirm just
+    Section B should add only Section B's students to this course's
+    roster, leaving the other three sections out entirely."""
+    from app.models import Student
+
+    client.post("/courses/new", data={
+        "subject_code": "21CS33", "subject_name": "Analog and Digital Electronics", "section": "B",
+    }, follow_redirects=True)
+    course_id = Course.query.first().id
+
+    with open(os.path.join(FIXTURES, "sample_roster.docx"), "rb") as f:
+        docx_bytes = f.read()
+
+    parse_resp = client.post(
+        f"/courses/{course_id}/marks/roster/import/parse",
+        data={"roster": (io.BytesIO(docx_bytes), "sample_roster.docx")},
+        content_type="multipart/form-data",
+    )
+    assert parse_resp.status_code == 200
+    assert b"Section A" in parse_resp.data
+    assert b"Section B" in parse_resp.data
+    assert b"Section D" in parse_resp.data
+    assert b"Matches this course" in parse_resp.data  # course.section == "B"
+    assert Student.query.count() == 0  # nothing saved just from parsing/reviewing
+
+    # Simulate submitting only Section B's form: its USNs/names, taken
+    # straight from the parsed data (39th-38th student onward included).
+    from app.roster_import import parse_roster_docx
+    with open(os.path.join(FIXTURES, "sample_roster.docx"), "rb") as f:
+        parsed = parse_roster_docx(f)
+    section_b = next(s for s in parsed.sections if s.label == "B")
+
+    confirm_resp = client.post(
+        f"/courses/{course_id}/marks/roster/import/confirm",
+        data={
+            "section_label": "B",
+            "usn": [s.usn for s in section_b.students],
+            "name": [s.name for s in section_b.students],
+        },
+        follow_redirects=True,
+    )
+    assert confirm_resp.status_code == 200
+
+    students = Student.query.filter_by(course_id=course_id).all()
+    assert len(students) == len(section_b.students) == 69
+    assert Student.query.filter_by(course_id=course_id, usn="1AM23CS064").first() is not None
+    # Section A's students must not have been imported.
+    assert Student.query.filter_by(course_id=course_id, usn="1AM23CS040").first() is None
+
+
+def test_roster_import_skips_duplicate_usns_already_on_roster(client):
+    from app.models import Student
+
+    client.post("/courses/new", data={"subject_code": "T2", "subject_name": "Test"}, follow_redirects=True)
+    course_id = Course.query.first().id
+    client.post(f"/courses/{course_id}/marks/roster",
+                data={"action": "add_one", "usn": "1AM23CS064", "name": "Already Here"}, follow_redirects=True)
+
+    resp = client.post(
+        f"/courses/{course_id}/marks/roster/import/confirm",
+        data={
+            "section_label": "B",
+            "usn": ["1AM23CS064", "1AM23CS999"],
+            "name": ["Duplicate Student", "New Student"],
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    students = Student.query.filter_by(course_id=course_id).all()
+    assert len(students) == 2  # the original + the one genuinely new row
+    assert Student.query.filter_by(course_id=course_id, usn="1AM23CS064").first().name == "Already Here"
+
+
+def test_roster_import_rejects_non_docx_upload(client):
+    client.post("/courses/new", data={"subject_code": "T3", "subject_name": "Test"}, follow_redirects=True)
+    course_id = Course.query.first().id
+
+    resp = client.post(
+        f"/courses/{course_id}/marks/roster/import/parse",
+        data={"roster": (io.BytesIO(b"%PDF-1.4 not really"), "roster.pdf")},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"PDF rosters aren&#39;t supported yet" in resp.data or b"PDF rosters aren't supported yet" in resp.data

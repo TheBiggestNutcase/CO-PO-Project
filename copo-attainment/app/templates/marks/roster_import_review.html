@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Review roster import - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('marks.roster_import_form', course_id=course.id) }}">&larr; Back to upload</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Review before importing</h3>
+        <p class="muted" style="margin-top:-6px;">
+            Found {{ parsed.sections|length }} section(s) in the file. Each one below is its own import - pick the
+            one that matches this course{% if course.section %} (this course is set to Section {{ course.section }}){% endif %},
+            fix anything wrong first, then click that section's "Import" button. Nothing is added to the roster
+            until you do.
+        </p>
+    </div>
+
+    {% if parsed.warnings %}
+    <div class="card warning">
+        <h3>Heads up</h3>
+        <ul style="margin: 0; padding-left: 18px;">
+            {% for w in parsed.warnings %}
+            <li>{{ w }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if not parsed.sections %}
+    <div class="card">
+        <p class="empty">No sections could be extracted. Add students by hand from the roster page instead.</p>
+    </div>
+    {% endif %}
+
+    {% for section in parsed.sections %}
+    <div class="card{% if course.section and course.section == section.label %} highlight{% endif %}">
+        <h3>
+            Section {{ section.label }}
+            {% if course.section and course.section == section.label %}<span class="tag level-3">Matches this course's section</span>{% endif %}
+        </h3>
+        <p class="muted" style="margin-top:-6px;">
+            {{ section.department or '(department not detected)' }}{% if section.academic_year %} &middot; {{ section.academic_year }}{% endif %}{% if section.semester %} &middot; {{ section.semester }} semester{% endif %}
+            &middot; {{ section.students|length }} extracted{% if section.declared_total %} (heading said {{ section.declared_total }}){% endif %}
+        </p>
+
+        {% if section.warnings %}
+        <ul style="margin: 0 0 10px; padding-left: 18px;">
+            {% for w in section.warnings %}
+            <li class="muted">{{ w }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('marks.roster_import_confirm', course_id=course.id) }}">
+            <input type="hidden" name="section_label" value="{{ section.label }}">
+            <table class="plain">
+                <tr><th style="width:150px;">USN</th><th>Name</th><th></th></tr>
+                {% for student in section.students %}
+                <tr>
+                    <td><input type="text" name="usn" value="{{ student.usn }}"></td>
+                    <td><input type="text" name="name" value="{{ student.name }}"></td>
+                    <td>
+                        {% if student.usn in existing_usns %}<span class="muted" style="font-size:12px;">already on roster - will be skipped</span>{% endif %}
+                        {% if student.warning %}<span class="muted" style="font-size:12px;">{{ student.warning }}</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% for _ in range(5) %}
+                <tr>
+                    <td><input type="text" name="usn" value=""></td>
+                    <td><input type="text" name="name" value=""></td>
+                    <td></td>
+                </tr>
+                {% endfor %}
+            </table>
+            <div class="btn-row">
+                <button type="submit">Import Section {{ section.label }} into {{ course.subject_code }}</button>
+            </div>
+        </form>
+    </div>
+    {% endfor %}
+{% endblock %}

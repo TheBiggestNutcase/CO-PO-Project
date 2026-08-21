@@ -24,6 +24,7 @@ from app.constants import STANDARD_PO_DESCRIPTIONS
 # (table_name, column_name, column_type_sql, default_sql_or_None)
 COLUMNS_TO_ENSURE = [
     ("program_outcome", "description", "TEXT", None),
+    ("course", "section", "TEXT", "''"),
 ]
 
 

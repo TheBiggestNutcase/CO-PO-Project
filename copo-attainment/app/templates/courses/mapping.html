@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}CO-PO Mapping - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('setup.course_detail', course_id=course.id) }}">&larr; Back to course overview</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>CO-PO/PSO correlation matrix</h3>
+        <p class="muted" style="margin-top:-6px;">1 = slight, 2 = moderate, 3 = substantial (the standard NBA scale). Leave a cell blank if that CO isn't mapped to that PO - matches the template's convention of leaving the cell empty rather than forcing a 0.</p>
+
+        {% if not course.outcomes or not course.program_outcomes %}
+        <p class="empty">Add Course Outcomes and Program Outcomes first before mapping them.</p>
+        {% else %}
+        <form method="post">
+            <div style="overflow-x:auto;">
+            <table class="grid">
+                <tr>
+                    <th>CO \ PO</th>
+                    {% for po in course.program_outcomes %}
+                    <th>{{ po.code }}</th>
+                    {% endfor %}
+                </tr>
+                {% for co in course.outcomes %}
+                <tr>
+                    <td class="label">{{ co.code }}</td>
+                    {% for po in course.program_outcomes %}
+                    <td>
+                        <input type="text" inputmode="numeric" maxlength="1"
+                               name="corr_{{ co.id }}_{{ po.id }}"
+                               value="{{ mapping_lookup.get((co.id, po.id), '') }}">
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
+            </div>
+            <div class="btn-row">
+                <button type="submit">Save mapping</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+{% endblock %}

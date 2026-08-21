@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+    <div class="card">
+        <p class="empty">{{ note }}</p>
+    </div>
+{% endblock %}

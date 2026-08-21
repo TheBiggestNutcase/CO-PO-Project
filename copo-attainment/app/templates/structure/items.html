@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('structure.list_components', course_id=course.id) }}">&larr; Back to Assessment Structure</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>{{ label }}</h3>
+        {% if not course.outcomes %}
+        <p class="empty">Add Course Outcomes first before defining items.</p>
+        {% else %}
+
+        {% if component.items %}
+        <table class="plain">
+            <tr>
+                <th>#</th><th>Label</th>
+                {% if not is_exit_survey %}<th>Max marks</th>{% endif %}
+                <th>Mapped CO(s)</th><th></th>
+            </tr>
+            {% for item in component.items %}
+            <tr>
+                <td>{{ item.seq }}</td>
+                <td><strong>{{ item.label }}</strong></td>
+                {% if not is_exit_survey %}<td class="num">{{ item.max_marks }}</td>{% endif %}
+                <td>{{ item.co_links|map(attribute='co')|map(attribute='code')|join(', ') or '-' }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('structure.delete_item', course_id=course.id, comp_type=comp_type, item_id=item.id) }}"
+                          onsubmit="return confirm('Remove item {{ item.label }}? This also removes any marks/responses already entered for it.');">
+                        <button type="submit" class="danger">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p class="empty">No items yet.</p>
+        {% endif %}
+
+        <h3>Add an item</h3>
+        <form method="post">
+            <div class="field-row">
+                <div class="field">
+                    <label for="label">Label</label>
+                    <input type="text" id="label" name="label" required placeholder="{{ '1A' if not is_exit_survey else 'Q1' }}">
+                </div>
+                {% if not is_exit_survey %}
+                <div class="field">
+                    <label for="max_marks">Max marks</label>
+                    <input type="number" step="0.5" id="max_marks" name="max_marks" required>
+                </div>
+                {% endif %}
+            </div>
+            <div class="field">
+                <label>CO(s) this item maps to</label>
+                {% for co in course.outcomes %}
+                <label style="display:inline-block; font-weight:normal; margin-right:14px;">
+                    <input type="checkbox" name="co_ids" value="{{ co.id }}" style="width:auto;"> {{ co.code }}
+                </label>
+                {% endfor %}
+            </div>
+            <button type="submit">+ Add item</button>
+        </form>
+        {% endif %}
+    </div>
+{% endblock %}

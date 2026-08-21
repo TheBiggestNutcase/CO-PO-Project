@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Marks Entry - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('setup.course_detail', course_id=course.id) }}">&larr; Back to course overview</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Roster</h3>
+        <p class="muted" style="margin-top:-6px;">{{ course.students|length }} student(s) on the roster.</p>
+        <a class="btn secondary" href="{{ url_for('marks.manage_roster', course_id=course.id) }}">Manage roster &rarr;</a>
+    </div>
+
+    <div class="card">
+        <h3>Enter marks / responses</h3>
+        <table class="plain">
+            <tr><th>Component</th><th>Status</th><th></th></tr>
+            {% for row in rows %}
+            <tr>
+                <td><strong>{{ row.label }}</strong></td>
+                <td class="muted">{{ 'structure ready' if row.ready else 'set up structure first' }}</td>
+                <td>
+                    {% if row.ready %}
+                    <a href="{{ url_for('marks.enter_component_marks', course_id=course.id, comp_type=row.type) }}">Enter &rarr;</a>
+                    {% else %}
+                    <a href="{{ url_for('structure.manage_component', course_id=course.id, comp_type=row.type) }}">Set up structure &rarr;</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% endblock %}

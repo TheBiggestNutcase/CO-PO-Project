@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}External - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('marks.list_components', course_id=course.id) }}">&larr; Back to Marks Entry</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>External (SEE) - results</h3>
+        {% if not students %}
+        <p class="empty">Add students to the roster first.</p>
+        {% else %}
+        <p class="muted" style="margin-top:-6px;">Internal total is informational only (not used in the calculation). External marks and Result (P/F) drive the External attainment %.</p>
+        <form method="post">
+            <div style="overflow-x:auto;">
+            <table class="grid">
+                <tr>
+                    <th>USN</th><th>Name</th><th>Internal total</th><th>External marks</th><th>Result</th>
+                </tr>
+                {% for student in students %}
+                {% set r = results_lookup.get(student.id) %}
+                <tr>
+                    <td class="label">{{ student.usn }}</td>
+                    <td class="label" style="text-align:left;">{{ student.name }}</td>
+                    <td><input type="number" step="0.5" min="0" name="internal_{{ student.id }}" value="{{ r.internal_total if r and r.internal_total is not none else '' }}"></td>
+                    <td><input type="number" step="0.5" min="0" name="external_{{ student.id }}" value="{{ r.external_marks if r and r.external_marks is not none else '' }}"></td>
+                    <td>
+                        <select name="result_{{ student.id }}" style="width:64px;">
+                            <option value="" {{ 'selected' if not r or not r.result }}></option>
+                            <option value="P" {{ 'selected' if r and r.result == 'P' }}>P</option>
+                            <option value="F" {{ 'selected' if r and r.result == 'F' }}>F</option>
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+            </div>
+            <div class="btn-row">
+                <button type="submit">Save results</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+{% endblock %}

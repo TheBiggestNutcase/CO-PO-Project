@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Exit survey - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('marks.list_components', course_id=course.id) }}">&larr; Back to Marks Entry</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Course Exit Survey - responses</h3>
+        {% if not students %}
+        <p class="empty">Add students to the roster first.</p>
+        {% elif not items %}
+        <p class="empty">No survey questions defined yet - <a href="{{ url_for('structure.manage_component', course_id=course.id, comp_type='EXIT_SURVEY') }}">set up the structure</a> first.</p>
+        {% else %}
+        <p class="muted" style="margin-top:-6px;">A = Excellent, B = Good, C = Average, D = Poor, E = Very Poor. Only A/B count towards attainment. Leave blank for no response.</p>
+        <form method="post">
+            <div style="overflow-x:auto;">
+            <table class="grid">
+                <tr>
+                    <th>USN</th><th>Name</th>
+                    {% for item in items %}<th>{{ item.label }}</th>{% endfor %}
+                </tr>
+                {% for student in students %}
+                <tr>
+                    <td class="label">{{ student.usn }}</td>
+                    <td class="label" style="text-align:left;">{{ student.name }}</td>
+                    {% for item in items %}
+                    <td>
+                        <select name="rating_{{ student.id }}_{{ item.id }}" style="width:56px;">
+                            {% set current = responses_lookup.get((student.id, item.id), '') %}
+                            <option value="" {{ 'selected' if current == '' }}></option>
+                            {% for r in ratings %}
+                            <option value="{{ r }}" {{ 'selected' if current == r }}>{{ r }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
+            </div>
+            <div class="btn-row">
+                <button type="submit">Save responses</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+{% endblock %}

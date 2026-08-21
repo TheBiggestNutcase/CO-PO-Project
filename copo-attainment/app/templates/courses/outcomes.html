@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Course Outcomes - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('setup.course_detail', course_id=course.id) }}">&larr; Back to course overview</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Course Outcomes</h3>
+        {% if course.outcomes %}
+        <table class="plain">
+            <tr><th>#</th><th>Code</th><th>Description</th><th></th></tr>
+            {% for co in course.outcomes %}
+            <tr>
+                <td>{{ co.seq }}</td>
+                <td><strong>{{ co.code }}</strong></td>
+                <td class="muted">{{ co.description or '' }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('setup.delete_outcome', course_id=course.id, co_id=co.id) }}"
+                          onsubmit="return confirm('Remove {{ co.code }}? This also removes its marks, exit-survey answers and PO mapping.');">
+                        <button type="submit" class="danger">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p class="empty">No COs yet - add the ones for this course below.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Add a CO</h3>
+        <form method="post">
+            <div class="field-row">
+                <div class="field">
+                    <label for="code">CO code (e.g. CO{{ course.outcomes|length + 1 }})</label>
+                    <input type="text" id="code" name="code" required placeholder="CO{{ course.outcomes|length + 1 }}">
+                </div>
+                <div class="field" style="flex: 3;">
+                    <label for="description">Description (optional)</label>
+                    <input type="text" id="description" name="description" placeholder="What this outcome covers">
+                </div>
+            </div>
+            <button type="submit">+ Add CO</button>
+        </form>
+    </div>
+{% endblock %}

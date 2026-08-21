@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Results - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('setup.course_detail', course_id=course.id) }}">&larr; Back to course overview</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>CO attainment</h3>
+        <p class="muted" style="margin-top:-6px;">
+            CIA = average(IA, ASQM). Blended % = 90%&times;(50%&times;CIA + 50%&times;External) + 10%&times;Exit survey.
+            Level uses your Level 1/2/3 targets ({{ course.target_level1_pct }}% / {{ course.target_level2_pct }}% / {{ course.target_level3_pct }}%).
+        </p>
+        {% if not result.co_rows %}
+        <p class="empty">Add Course Outcomes to see results here.</p>
+        {% else %}
+        <table class="plain">
+            <tr>
+                <th>CO</th><th>IA %</th><th>ASQM %</th><th>CIA %</th>
+                <th>External %</th><th>Exit Survey %</th><th>Blended %</th><th>Level</th>
+            </tr>
+            {% for row in result.co_rows %}
+            <tr>
+                <td><strong>{{ row.co_code }}</strong></td>
+                <td class="num">{{ '%.1f'|format(row.ia_pct) if row.ia_pct is not none else '-' }}</td>
+                <td class="num">{{ '%.1f'|format(row.asqm_pct) if row.asqm_pct is not none else '-' }}</td>
+                <td class="num">{{ '%.1f'|format(row.cia_pct) if row.cia_pct is not none else '-' }}</td>
+                <td class="num">{{ '%.1f'|format(row.external_pct) if row.external_pct is not none else '-' }}</td>
+                <td class="num">{{ '%.1f'|format(row.exit_survey_pct) if row.exit_survey_pct is not none else '-' }}</td>
+                <td class="num"><strong>{{ '%.1f'|format(row.blended_pct) if row.blended_pct is not none else '-' }}</strong></td>
+                <td>
+                    {% if row.level is not none %}
+                    <span class="tag level-{{ row.level }}">Level {{ row.level }}</span>
+                    {% else %}
+                    <span class="muted">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>PO / PSO attainment</h3>
+        <p class="muted" style="margin-top:-6px;">Correlation-weighted average of CO levels, using only the COs mapped to each PO.</p>
+        {% if not result.po_rows %}
+        <p class="empty">Add Program Outcomes and the CO-PO mapping to see results here.</p>
+        {% else %}
+        <table class="plain">
+            <tr><th>PO</th><th>Type</th><th>Attainment</th><th>Mapped COs</th></tr>
+            {% for row in result.po_rows %}
+            <tr>
+                <td><strong>{{ row.po_code }}</strong></td>
+                <td class="muted">{{ 'PSO' if row.is_pso else 'PO' }}</td>
+                <td class="num">{{ '%.2f'|format(row.attainment) if row.attainment is not none else '-' }}</td>
+                <td class="num">{{ row.mapped_co_count }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+    </div>
+{% endblock %}

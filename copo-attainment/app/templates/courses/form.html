@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit course' if course else 'New course' }}{% endblock %}
+{% block content %}
+    {% if course %}
+    <a class="back-link" href="{{ url_for('setup.course_detail', course_id=course.id) }}">&larr; Back to course overview</a>
+    {% else %}
+    <a class="back-link" href="{{ url_for('setup.list_courses') }}">&larr; Back to courses</a>
+    {% endif %}
+    <h1>{{ 'Edit course' if course else 'New course' }}</h1>
+    <p class="subtitle">Mirrors the "set target form" sheet: subject/faculty details and Level 1/2/3 targets.</p>
+
+    <form method="post" class="card">
+        <h3>Subject details</h3>
+        <div class="field-row">
+            <div class="field">
+                <label for="institution_name">Institution</label>
+                <input type="text" id="institution_name" name="institution_name" value="{{ course.institution_name if course else '' }}">
+            </div>
+            <div class="field">
+                <label for="department">Department</label>
+                <input type="text" id="department" name="department" value="{{ course.department if course else '' }}">
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field">
+                <label for="subject_code">Subject code</label>
+                <input type="text" id="subject_code" name="subject_code" required value="{{ course.subject_code if course else '' }}">
+            </div>
+            <div class="field">
+                <label for="subject_name">Subject name</label>
+                <input type="text" id="subject_name" name="subject_name" required value="{{ course.subject_name if course else '' }}">
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field">
+                <label for="faculty_name">Faculty handling</label>
+                <input type="text" id="faculty_name" name="faculty_name" value="{{ course.faculty_name if course else '' }}">
+            </div>
+            <div class="field">
+                <label for="academic_year">Academic year (e.g. 2025-26)</label>
+                <input type="text" id="academic_year" name="academic_year" value="{{ course.academic_year if course else '' }}">
+            </div>
+            <div class="field">
+                <label for="semester">Semester</label>
+                <input type="text" id="semester" name="semester" value="{{ course.semester if course else '' }}">
+            </div>
+        </div>
+
+        <h3>Attainment targets</h3>
+        <p class="muted" style="margin-top:-6px; max-width: 640px;">
+            These four numbers decide how a Course Outcome's raw marks turn into a 0-3 attainment
+            <strong>Level</strong> on the Results page. The first three set the scoring bands; the
+            last one decides, for each student, whether they personally "cleared" a CO at all.
+        </p>
+        <div class="field-row">
+            <div class="field">
+                <label for="target_level1_pct">Level 1 target (%)</label>
+                <input type="number" step="0.1" id="target_level1_pct" name="target_level1_pct" value="{{ course.target_level1_pct if course else 50 }}">
+                <span class="hint">The minimum overall attainment % a CO needs to be scored as Level 1 at all. Below this, it's Level 0 - meaning the outcome wasn't attained. Commonly 50%.</span>
+            </div>
+            <div class="field">
+                <label for="target_level2_pct">Level 2 target (%)</label>
+                <input type="number" step="0.1" id="target_level2_pct" name="target_level2_pct" value="{{ course.target_level2_pct if course else 60 }}">
+                <span class="hint">The overall attainment % needed to move up to Level 2 - a solidly-met outcome. Should be higher than the Level 1 target. Commonly 60%.</span>
+            </div>
+            <div class="field">
+                <label for="target_level3_pct">Level 3 target (%)</label>
+                <input type="number" step="0.1" id="target_level3_pct" name="target_level3_pct" value="{{ course.target_level3_pct if course else 70 }}">
+                <span class="hint">The overall attainment % needed to reach Level 3, the highest band - the outcome was met very well. Should be higher than the Level 2 target. Commonly 70%.</span>
+            </div>
+            <div class="field">
+                <label for="internal_marks_cutoff_pct">Internal pass cutoff (% of marks)</label>
+                <input type="number" step="0.1" id="internal_marks_cutoff_pct" name="internal_marks_cutoff_pct" value="{{ course.internal_marks_cutoff_pct if course else 60 }}">
+                <span class="hint">A per-student bar, not a class-wide one: the % of marks a student must score on a CO's internal questions (IA tests + assignments/quiz/seminar) to count as having cleared that CO themselves. This feeds into the attainment % that the three Level targets above are then measured against. Commonly 60%.</span>
+            </div>
+        </div>
+
+        <div class="btn-row">
+            <button type="submit">{{ 'Save changes' if course else 'Create course' }}</button>
+            {% if course %}
+            <a class="btn secondary" href="{{ url_for('setup.course_detail', course_id=course.id) }}">Cancel</a>
+            {% else %}
+            <a class="btn secondary" href="{{ url_for('setup.list_courses') }}">Cancel</a>
+            {% endif %}
+        </div>
+    </form>
+{% endblock %}

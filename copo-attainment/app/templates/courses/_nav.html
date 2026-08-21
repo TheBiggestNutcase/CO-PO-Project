@@ -1,0 +1,16 @@
+<div class="section-nav">
+    <a href="{{ url_for('setup.course_detail', course_id=course.id) }}"
+       class="{{ 'active' if request.endpoint == 'setup.course_detail' else '' }}">Overview</a>
+    <a href="{{ url_for('setup.manage_outcomes', course_id=course.id) }}"
+       class="{{ 'active' if request.endpoint == 'setup.manage_outcomes' else '' }}">Course Outcomes</a>
+    <a href="{{ url_for('setup.manage_program_outcomes', course_id=course.id) }}"
+       class="{{ 'active' if request.endpoint == 'setup.manage_program_outcomes' else '' }}">Program Outcomes</a>
+    <a href="{{ url_for('setup.manage_mapping', course_id=course.id) }}"
+       class="{{ 'active' if request.endpoint == 'setup.manage_mapping' else '' }}">CO-PO Mapping</a>
+    <a href="{{ url_for('structure.list_components', course_id=course.id) }}"
+       class="{{ 'active' if request.endpoint and request.endpoint.startswith('structure.') else '' }}">Assessment Structure</a>
+    <a href="{{ url_for('marks.list_components', course_id=course.id) }}"
+       class="{{ 'active' if request.endpoint and request.endpoint.startswith('marks.') else '' }}">Marks Entry</a>
+    <a href="{{ url_for('results.view_results', course_id=course.id) }}"
+       class="{{ 'active' if request.endpoint and request.endpoint.startswith('results.') else '' }}">Results</a>
+</div>

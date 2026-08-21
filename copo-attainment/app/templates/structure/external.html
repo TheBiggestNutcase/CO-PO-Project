@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}External - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('structure.list_components', course_id=course.id) }}">&larr; Back to Assessment Structure</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>External (Semester End Exam)</h3>
+        <p class="empty">External doesn't need a question structure - like the template's "External" sheet, it contributes equally to every CO. Just enter each student's total external marks and result in the Marks Entry section.</p>
+        <a class="btn" href="{{ url_for('marks.list_components', course_id=course.id) }}">Go to Marks Entry &rarr;</a>
+    </div>
+{% endblock %}

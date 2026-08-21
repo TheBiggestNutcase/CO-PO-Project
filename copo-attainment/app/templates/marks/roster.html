@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Roster - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('marks.list_components', course_id=course.id) }}">&larr; Back to Marks Entry</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Student roster ({{ course.students|length }})</h3>
+        {% if course.students %}
+        <table class="plain">
+            <tr><th>#</th><th>USN</th><th>Name</th><th></th></tr>
+            {% for s in course.students %}
+            <tr>
+                <td>{{ s.seq }}</td>
+                <td>{{ s.usn }}</td>
+                <td>{{ s.name }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('marks.delete_student', course_id=course.id, student_id=s.id) }}"
+                          onsubmit="return confirm('Remove {{ s.name }}? This also removes all their marks/responses.');">
+                        <button type="submit" class="danger">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p class="empty">No students yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Add one student</h3>
+        <form method="post">
+            <input type="hidden" name="action" value="add_one">
+            <div class="field-row">
+                <div class="field">
+                    <label for="usn">USN</label>
+                    <input type="text" id="usn" name="usn" required>
+                </div>
+                <div class="field" style="flex:2;">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+            </div>
+            <button type="submit">+ Add student</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Add several at once</h3>
+        <p class="muted" style="margin-top:-6px;">One student per line, as <code>USN, Name</code>.</p>
+        <form method="post">
+            <input type="hidden" name="action" value="add_bulk">
+            <div class="field">
+                <textarea name="bulk_text" rows="8" placeholder="1AM21PH001, Aditi Rao&#10;1AM21PH002, Rahul Shetty"></textarea>
+            </div>
+            <button type="submit">+ Add students</button>
+        </form>
+    </div>
+{% endblock %}

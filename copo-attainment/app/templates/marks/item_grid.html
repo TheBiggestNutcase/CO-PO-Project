@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} marks - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('marks.list_components', course_id=course.id) }}">&larr; Back to Marks Entry</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>{{ label }} - marks entry</h3>
+        {% if not students %}
+        <p class="empty">Add students to the roster first.</p>
+        {% elif not items %}
+        <p class="empty">No items defined for this component yet - <a href="{{ url_for('structure.manage_component', course_id=course.id, comp_type=comp_type) }}">set up the structure</a> first.</p>
+        {% else %}
+        <p class="muted" style="margin-top:-6px;">Leave a cell blank for an absent student - it won't count against them (matches "if absent, don't enter anything").</p>
+        <form method="post">
+            <div style="overflow-x:auto;">
+            <table class="grid">
+                <tr>
+                    <th>USN</th><th>Name</th>
+                    {% for item in items %}
+                    <th>{{ item.label }}<br><span class="muted" style="font-weight:400;">/{{ item.max_marks|int if item.max_marks == item.max_marks|int else item.max_marks }}</span></th>
+                    {% endfor %}
+                </tr>
+                {% for student in students %}
+                <tr>
+                    <td class="label">{{ student.usn }}</td>
+                    <td class="label" style="text-align:left;">{{ student.name }}</td>
+                    {% for item in items %}
+                    <td>
+                        <input type="number" step="0.5" min="0" max="{{ item.max_marks }}"
+                               name="mark_{{ student.id }}_{{ item.id }}"
+                               value="{{ marks_lookup.get((student.id, item.id), '') }}">
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
+            </div>
+            <div class="btn-row">
+                <button type="submit">Save marks</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+{% endblock %}

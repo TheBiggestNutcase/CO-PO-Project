@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Program Outcomes - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('setup.course_detail', course_id=course.id) }}">&larr; Back to course overview</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Program Outcomes / PSOs</h3>
+        {% if course.program_outcomes %}
+        <table class="plain">
+            <tr><th>#</th><th>Code</th><th>Type</th><th>Description</th><th></th></tr>
+            {% for po in course.program_outcomes %}
+            <tr>
+                <td>{{ po.seq }}</td>
+                <td><strong>{{ po.code }}</strong></td>
+                <td class="muted">{{ 'PSO' if po.is_pso else 'PO' }}</td>
+                <td class="muted">{{ po.description or '' }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('setup.delete_program_outcome', course_id=course.id, po_id=po.id) }}"
+                          onsubmit="return confirm('Remove {{ po.code }}? This also removes its CO mapping.');">
+                        <button type="submit" class="danger">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p class="empty">No POs/PSOs yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>Add the standard POs</h3>
+        <p class="muted" style="margin-top:-6px;">Most programs use the same PO1-PO12, with standard wording - added automatically. Add them all at once, then add any program-specific PSOs below.</p>
+        <form method="post">
+            <input type="hidden" name="action" value="add_standard">
+            <button type="submit">+ Add PO1-PO12</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Add a PO or PSO</h3>
+        <form method="post">
+            <div class="field-row">
+                <div class="field">
+                    <label for="code">Code</label>
+                    <input type="text" id="code" name="code" required placeholder="PSO1">
+                </div>
+                <div class="field">
+                    <label for="is_pso">Type</label>
+                    <select id="is_pso" name="is_pso">
+                        <option value="">PO</option>
+                        <option value="on">PSO</option>
+                    </select>
+                </div>
+                <div class="field" style="flex: 3;">
+                    <label for="description">Description (optional)</label>
+                    <input type="text" id="description" name="description" placeholder="What this outcome covers">
+                </div>
+            </div>
+            <button type="submit">+ Add</button>
+        </form>
+    </div>
+{% endblock %}

@@ -3,7 +3,7 @@
 {% block content %}
     <a class="back-link" href="{{ url_for('setup.list_courses') }}">&larr; Back to courses</a>
     <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
-    <p class="subtitle">{{ course.department }}{% if course.department and course.academic_year %} &middot; {% endif %}{{ course.academic_year }}{% if course.semester %} &middot; Sem {{ course.semester }}{% endif %}{% if course.faculty_name %} &middot; {{ course.faculty_name }}{% endif %}</p>
+    <p class="subtitle">{{ course.department }}{% if course.department and course.academic_year %} &middot; {% endif %}{{ course.academic_year }}{% if course.semester %} &middot; Sem {{ course.semester }}{% endif %}{% if course.section %} &middot; Sec {{ course.section }}{% endif %}{% if course.faculty_name %} &middot; {{ course.faculty_name }}{% endif %}</p>
 
     {% include "courses/_nav.html" %}
 

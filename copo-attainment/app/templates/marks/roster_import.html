@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Import roster - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('marks.manage_roster', course_id=course.id) }}">&larr; Back to roster</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Import roster from a Word document</h3>
+        <p class="muted" style="margin-top:-6px;">
+            Upload a "sections-wise" student list and this will try to pull out each section's students for you to
+            review before anything is added to this course's roster.
+        </p>
+        <form method="post" action="{{ url_for('marks.roster_import_parse', course_id=course.id) }}" enctype="multipart/form-data">
+            <div class="field">
+                <label for="roster">Roster file (.docx)</label>
+                <input type="file" id="roster" name="roster" accept=".docx" required>
+                <span class="hint">
+                    Works best with a document made of repeating "&lt;Semester&gt; Section &lt;X&gt;: Total: &lt;N&gt;"
+                    headings, each followed by a Sl.No./USN/Name table. If your file has more than one section, you'll
+                    get to pick which one to import into this course's roster on the next screen. PDF rosters aren't
+                    supported yet - convert to Word first, or add students by hand.
+                </span>
+            </div>
+            <div class="btn-row">
+                <button type="submit">Extract from file</button>
+                <a class="btn secondary" href="{{ url_for('marks.manage_roster', course_id=course.id) }}">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock %}

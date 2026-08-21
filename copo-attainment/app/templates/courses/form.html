@@ -44,6 +44,11 @@
                 <label for="semester">Semester</label>
                 <input type="text" id="semester" name="semester" value="{{ course.semester if course else '' }}">
             </div>
+            <div class="field">
+                <label for="section">Section</label>
+                <input type="text" id="section" name="section" value="{{ course.section if course else '' }}" placeholder="A">
+                <span class="hint">Which class section this course covers, if your subject is taught to more than one (e.g. "A"). Leave blank if not applicable.</span>
+            </div>
         </div>
 
         <h3>Attainment targets</h3>

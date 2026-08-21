@@ -11,6 +11,7 @@
                 <th>Subject</th>
                 <th>Academic Year</th>
                 <th>Sem</th>
+                <th>Sec</th>
                 <th>Faculty</th>
                 <th></th>
             </tr>
@@ -19,6 +20,7 @@
                 <td><a href="{{ url_for('setup.course_detail', course_id=c.id) }}">{{ c.subject_code }} - {{ c.subject_name }}</a></td>
                 <td>{{ c.academic_year }}</td>
                 <td>{{ c.semester }}</td>
+                <td>{{ c.section }}</td>
                 <td>{{ c.faculty_name }}</td>
                 <td><a href="{{ url_for('setup.course_detail', course_id=c.id) }}">Open &rarr;</a></td>
             </tr>

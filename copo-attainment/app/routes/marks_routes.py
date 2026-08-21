@@ -16,6 +16,7 @@ from app.models import (
 )
 from app.routes.structure_routes import COMPONENT_LABELS
 from app.models import COMPONENT_TYPES
+from app.roster_import import parse_roster_docx
 
 marks_bp = Blueprint("marks", __name__, url_prefix="/courses/<int:course_id>/marks")
 
@@ -93,6 +94,88 @@ def delete_student(course_id, student_id):
         db.session.commit()
         flash(f"Removed {student.name} and all their marks/responses.", "success")
     return redirect(url_for("marks.manage_roster", course_id=course_id))
+
+
+# ----------------------------------------------------------- roster import
+
+@marks_bp.route("/roster/import", methods=["GET"])
+def roster_import_form(course_id):
+    course = _get_course_or_404(course_id)
+    return render_template("marks/roster_import.html", course=course)
+
+
+@marks_bp.route("/roster/import/parse", methods=["POST"])
+def roster_import_parse(course_id):
+    course = _get_course_or_404(course_id)
+    uploaded = request.files.get("roster")
+    if not uploaded or uploaded.filename == "":
+        flash("Choose a file first.", "error")
+        return redirect(url_for("marks.roster_import_form", course_id=course.id))
+    if not uploaded.filename.lower().endswith(".docx"):
+        flash(
+            "That doesn't look like a Word document. PDF rosters aren't supported yet - "
+            "please upload a .docx file, or add students by hand below.",
+            "error",
+        )
+        return redirect(url_for("marks.roster_import_form", course_id=course.id))
+
+    try:
+        parsed = parse_roster_docx(uploaded.stream)
+    except ImportError:
+        flash(
+            "The 'python-docx' library isn't installed. Run 'pip install -r requirements.txt' "
+            "(with your virtual environment activated), restart the app, and try again.",
+            "error",
+        )
+        return redirect(url_for("marks.roster_import_form", course_id=course.id))
+    except Exception:
+        flash(
+            "Couldn't read that file - it may not be a real Word document, or it's corrupted. "
+            "You can still add students by hand.",
+            "error",
+        )
+        return redirect(url_for("marks.manage_roster", course_id=course.id))
+
+    existing_usns = {s.usn for s in course.students}
+
+    return render_template(
+        "marks/roster_import_review.html",
+        course=course, parsed=parsed, existing_usns=existing_usns,
+    )
+
+
+@marks_bp.route("/roster/import/confirm", methods=["POST"])
+def roster_import_confirm(course_id):
+    course = _get_course_or_404(course_id)
+
+    existing_usns = {s.usn for s in course.students}
+    next_seq = max((s.seq for s in course.students), default=0)
+    added = 0
+    skipped = 0
+
+    usns = request.form.getlist("usn")
+    names = request.form.getlist("name")
+    for usn, name in zip(usns, names):
+        usn = usn.strip()
+        name = name.strip()
+        if not usn or not name:
+            continue  # a spare/blank row
+        if usn in existing_usns:
+            skipped += 1
+            continue
+        next_seq += 1
+        db.session.add(Student(course_id=course.id, seq=next_seq, usn=usn, name=name))
+        existing_usns.add(usn)
+        added += 1
+
+    db.session.commit()
+    section_label = request.form.get("section_label", "").strip()
+    flash(
+        f"Imported {added} student(s) from Section {section_label}."
+        + (f" Skipped {skipped} (already on the roster)." if skipped else ""),
+        "success",
+    )
+    return redirect(url_for("marks.manage_roster", course_id=course.id))
 
 
 # ------------------------------------------------------------ item-based

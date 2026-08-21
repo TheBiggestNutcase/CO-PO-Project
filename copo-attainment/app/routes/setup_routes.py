@@ -65,6 +65,7 @@ def _apply_course_form(course, form):
     course.faculty_name = form.get("faculty_name", "").strip()
     course.academic_year = form.get("academic_year", "").strip()
     course.semester = form.get("semester", "").strip()
+    course.section = form.get("section", "").strip()
     course.target_level1_pct = float(form.get("target_level1_pct") or 50)
     course.target_level2_pct = float(form.get("target_level2_pct") or 60)
     course.target_level3_pct = float(form.get("target_level3_pct") or 70)

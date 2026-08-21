@@ -58,4 +58,10 @@
             <button type="submit">+ Add students</button>
         </form>
     </div>
+
+    <div class="card">
+        <h3>Import from a roster file</h3>
+        <p class="muted" style="margin-top:-6px;">Upload a sections-wise student list (.docx) instead of typing or pasting the roster in by hand.</p>
+        <a class="btn secondary" href="{{ url_for('marks.roster_import_form', course_id=course.id) }}">Import from file</a>
+    </div>
 {% endblock %}

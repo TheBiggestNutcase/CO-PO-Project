@@ -35,6 +35,13 @@ def parse():
 
     try:
         parsed = parse_syllabus_pdf(uploaded.stream)
+    except ImportError:
+        flash(
+            "The 'pdfplumber' library isn't installed. Run 'pip install -r requirements.txt' "
+            "(with your virtual environment activated), restart the app, and try again.",
+            "error",
+        )
+        return redirect(url_for("import_syllabus.upload_form"))
     except Exception:
         flash(
             "Couldn't read that PDF - it may be a scanned image rather than real text, or corrupted. "

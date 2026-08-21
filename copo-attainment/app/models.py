@@ -42,6 +42,7 @@ class Course(db.Model):
     faculty_name = db.Column(db.String(200), nullable=False, default="")
     academic_year = db.Column(db.String(20), nullable=False, default="")
     semester = db.Column(db.String(20), nullable=False, default="")
+    section = db.Column(db.String(10), nullable=False, default="")
 
     # Level 1/2/3 targets - "% of students" that must clear the cutoff.
     # These are the E14:E16 cells in 'set target form' (used, per the

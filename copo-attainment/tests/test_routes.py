@@ -18,9 +18,18 @@ FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 
 @pytest.fixture()
 def client():
+    """A logged-in Unit Coordinator's test client. Every route in this file
+    was written/tested before login existed, so we bootstrap the one-time
+    coordinator account and log in before handing back the client - without
+    this, the app's global before_request would bounce every request here
+    to the setup/login screen instead of the route under test."""
     app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
     with app.app_context():
-        yield app.test_client()
+        test_client = app.test_client()
+        test_client.post("/setup-coordinator", data={
+            "name": "Test Coordinator", "password": "testpass123", "confirm_password": "testpass123",
+        }, follow_redirects=True)
+        yield test_client
 
 
 def test_external_marks_entry_works_without_visiting_structure_first(client):

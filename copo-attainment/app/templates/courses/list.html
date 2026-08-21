@@ -16,23 +16,32 @@
                 <th></th>
             </tr>
             {% for c in courses %}
+            {% set open_url = url_for('setup.course_detail', course_id=c.id) if current_user.is_coordinator else url_for('marks.list_components', course_id=c.id) %}
             <tr>
-                <td><a href="{{ url_for('setup.course_detail', course_id=c.id) }}">{{ c.subject_code }} - {{ c.subject_name }}</a></td>
+                <td><a href="{{ open_url }}">{{ c.subject_code }} - {{ c.subject_name }}</a></td>
                 <td>{{ c.academic_year }}</td>
                 <td>{{ c.semester }}</td>
                 <td>{{ c.section }}</td>
                 <td>{{ c.faculty_name }}</td>
-                <td><a href="{{ url_for('setup.course_detail', course_id=c.id) }}">Open &rarr;</a></td>
+                <td><a href="{{ open_url }}">Open &rarr;</a></td>
             </tr>
             {% endfor %}
         </table>
         {% else %}
-        <p class="empty">No courses yet. Create one to get started.</p>
+        <p class="empty">
+            {% if current_user.is_coordinator %}
+            No courses yet. Create one to get started.
+            {% else %}
+            You haven't been assigned to any courses yet - ask your unit coordinator to assign you.
+            {% endif %}
+        </p>
         {% endif %}
     </div>
 
+    {% if current_user.is_coordinator %}
     <div class="btn-row" style="margin-top: 0;">
         <a class="btn" href="{{ url_for('setup.new_course') }}">+ New course</a>
         <a class="btn secondary" href="{{ url_for('import_syllabus.upload_form') }}">Import from syllabus</a>
     </div>
+    {% endif %}
 {% endblock %}

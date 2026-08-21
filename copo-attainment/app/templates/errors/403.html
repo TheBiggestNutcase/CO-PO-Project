@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Not allowed{% endblock %}
+{% block content %}
+    <h1>Not allowed</h1>
+    <p class="subtitle">
+        {% if current_user.is_authenticated and not current_user.is_coordinator %}
+        Your account doesn't have access to this - Teacher accounts can only enter marks and view results for
+        courses they've been assigned to. If you think this is wrong, ask your Unit Coordinator to check your
+        course assignment.
+        {% else %}
+        You don't have permission to view this page.
+        {% endif %}
+    </p>
+    <a class="btn" href="{{ url_for('setup.list_courses') }}">Back to courses</a>
+{% endblock %}

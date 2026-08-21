@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Set up your account{% endblock %}
+{% block content %}
+    <h1>Welcome - let's set up your account</h1>
+    <p class="subtitle">
+        This is the one-time setup for this app. You'll be the <strong>Unit Coordinator</strong> - the only
+        account that can create courses, set COs/POs/mapping/targets, define the assessment structure, and
+        manage the roster. You can add Teacher accounts afterwards (from the Teachers page) for anyone who
+        should only enter marks and view results for specific courses.
+    </p>
+
+    <form method="post" class="card">
+        <div class="field">
+            <label for="name">Your name</label>
+            <input type="text" id="name" name="name" placeholder="Nithin H M" required autofocus>
+            <span class="hint">This is what you'll log in with (not case-sensitive).</span>
+        </div>
+        <div class="field-row">
+            <div class="field">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password">
+                <span class="hint">Can be left blank for local/personal use.</span>
+            </div>
+            <div class="field">
+                <label for="confirm_password">Confirm password</label>
+                <input type="password" id="confirm_password" name="confirm_password">
+            </div>
+        </div>
+        <button type="submit">Create my account</button>
+    </form>
+{% endblock %}

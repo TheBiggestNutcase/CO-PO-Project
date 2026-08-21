@@ -25,6 +25,11 @@ automatically instead of hand-wiring spreadsheet formulas.
 - Import from syllabus: upload a syllabus PDF and it pre-fills a new
   course's subject code/name and Course Outcomes for you to review and
   edit before anything is saved (see below).
+- Accounts and roles: one **Unit Coordinator** account (you) sets up
+  everything - COs, POs, mapping, targets, assessment structure, and the
+  roster - and can create **Teacher** accounts for colleagues who teach a
+  section with you. A Teacher only enters marks and views results, and
+  only for the course(s) you've explicitly assigned them to (see below).
 
 A **Course** represents one section's offering of a subject (e.g.
 "21CS33, Section B") - if you teach the same subject to multiple
@@ -32,7 +37,7 @@ sections, create one Course per section.
 
 Deliberately **not** built yet (by design, see project discussion):
 bulk/CSV import of marks, gap analysis vs previous years, formatted
-report export, multi-course dashboards, multiple user accounts.
+report export, multi-course dashboards.
 
 ## Running it
 
@@ -62,6 +67,41 @@ on first run) - it persists between restarts, so you can close the app
 and come back later to keep entering marks. To start completely fresh,
 just delete that file.
 
+## Accounts and roles
+
+The very first time you open the app, there are no accounts yet, so
+you're taken straight to a one-time **"set up your account"** screen -
+whatever name/password you pick there becomes the **Unit Coordinator**
+account. There's exactly one of these; it's the only account that can
+create/edit courses, set COs/POs/targets/mapping, define the assessment
+structure, and manage the student roster.
+
+You log in with your **name**, not a separate username - it's matched
+case-insensitively, so "Arushi Arunkumar" and "arushi arunkumar" both
+work. A password can be left blank (fine for a personal/local-network
+tool); if you do set one, it has to match exactly.
+
+From the **Teachers** page (top-right, coordinator only) you can create
+**Teacher** accounts for colleagues who teach a section alongside you,
+and tick which specific course(s) each one should see. A Teacher account
+can only enter marks and view results, and only for the course(s)
+you've assigned - everything else (including courses they're not
+assigned to) is off-limits. Since login is by name, each account needs
+a distinct name - the form won't let you add a second "Priya Rao".
+There's no self-service "forgot password" flow, since this isn't a
+hosted service - if a teacher forgets their password, reset it for them
+from the Teachers page.
+
+**Running on your local network:** since this still runs on your own
+Mac rather than being deployed anywhere, a teacher reaches it the same
+way you do - open a browser and go to `http://<your Mac's local
+IP>:8000` while connected to the same Wi-Fi/network as you (e.g. your
+school's staff network), instead of `localhost:8000`. You can find your
+Mac's local IP in System Settings -> Wi-Fi -> Details (or run
+`ipconfig getifaddr en0` in Terminal). The app needs to be running
+(`python run.py`) on your Mac for teachers to reach it - it's not
+available when your Mac is asleep or the app isn't running.
+
 ## Loading demo/test data
 
 To explore the app without typing everything in by hand first, run the
@@ -85,6 +125,16 @@ It's safe to run more than once - if the demo course already exists it
 just tells you so instead of creating a duplicate. To reset the demo
 data, delete the course from within the app (or delete
 `instance/copo.db` to wipe everything) and run the script again.
+
+If you run it before doing the real coordinator setup (i.e. on a
+completely fresh `instance/copo.db`), it also creates two demo accounts
+so you can try out both roles - log in as "Demo Coordinator" (password
+`coordinator123`) or "Demo Teacher" (password `teacher123`), already
+assigned to the demo course. It prints these credentials to the
+terminal. If you've already done the real coordinator setup, it skips
+creating these (so it never touches your real account) and just
+reminds you to add a demo teacher by hand if you want one. Change or
+delete these demo accounts before using the app for real.
 
 ## Importing from a syllabus PDF
 
@@ -158,7 +208,11 @@ worked example using the exact arithmetic from the original spreadsheet.
 `tests/test_routes.py` exercises the actual web flow (create course -> COs
 -> POs -> mapping -> structure -> roster -> marks -> results, plus the
 syllabus-import and roster-import upload/review/confirm flows) through
-Flask's test client. `tests/test_syllabus_import.py` and
+Flask's test client, logged in as the Coordinator. `tests/test_auth.py`
+covers the account/role side specifically: first-run bootstrap, login/
+logout, that Coordinator-only routes reject a Teacher with a 403, and
+that a Teacher can only reach marks entry/results for the course(s)
+they've been assigned to. `tests/test_syllabus_import.py` and
 `tests/test_roster_import.py` check the PDF/Word parsers directly against
 real sample documents.
 
@@ -182,22 +236,25 @@ deleted/reordered over time).
 ```
 app/
   __init__.py       - Flask app factory
-  extensions.py     - the shared SQLAlchemy db object
-  models.py         - the data model (Course, CO, PO, mapping, marks, ...)
+  extensions.py     - the shared SQLAlchemy db + Flask-Login objects
+  auth.py           - role-enforcement decorators (coordinator_required, ...)
+  models.py         - the data model (Course, CO, PO, mapping, marks, User, ...)
   engine.py         - the calculation engine (pure Python, unit-tested)
   routes/
-    setup_routes.py     - courses, COs, POs, CO-PO mapping
-    structure_routes.py - assessment item/question structure
-    marks_routes.py     - student roster + marks/response entry
-    results_routes.py   - computed CO/PO attainment
-    import_routes.py    - syllabus PDF upload -> review -> create course
+    auth_routes.py       - login, first-run coordinator setup, teacher management
+    setup_routes.py       - courses, COs, POs, CO-PO mapping
+    structure_routes.py   - assessment item/question structure
+    marks_routes.py       - student roster + marks/response entry
+    results_routes.py     - computed CO/PO attainment
+    import_routes.py      - syllabus PDF upload -> review -> create course
   syllabus_import.py - syllabus PDF text-extraction heuristics
   roster_import.py   - roster .docx text-extraction heuristics
   templates/        - Jinja2/HTML pages (no JS framework - plain forms)
   static/style.css  - all the styling
 tests/
   test_engine.py           - calculation engine unit tests
-  test_routes.py           - end-to-end route/flow tests
+  test_routes.py           - end-to-end route/flow tests (logged in as Coordinator)
+  test_auth.py             - login/roles/access-control tests
   test_syllabus_import.py  - syllabus PDF parser unit tests
   test_roster_import.py    - roster .docx parser unit tests
   fixtures/                - sample syllabus/roster files used by the tests above

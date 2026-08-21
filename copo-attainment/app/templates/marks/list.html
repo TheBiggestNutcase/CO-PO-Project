@@ -1,15 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Marks Entry - {{ course.subject_code }}{% endblock %}
 {% block content %}
+    {% if current_user.is_coordinator %}
     <a class="back-link" href="{{ url_for('setup.course_detail', course_id=course.id) }}">&larr; Back to course overview</a>
+    {% else %}
+    <a class="back-link" href="{{ url_for('setup.list_courses') }}">&larr; Back to your courses</a>
+    {% endif %}
     <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
     {% include "courses/_nav.html" %}
 
+    {% if current_user.is_coordinator %}
     <div class="card">
         <h3>Roster</h3>
         <p class="muted" style="margin-top:-6px;">{{ course.students|length }} student(s) on the roster.</p>
         <a class="btn secondary" href="{{ url_for('marks.manage_roster', course_id=course.id) }}">Manage roster &rarr;</a>
     </div>
+    {% endif %}
 
     <div class="card">
         <h3>Enter marks / responses</h3>
@@ -22,8 +28,10 @@
                 <td>
                     {% if row.ready %}
                     <a href="{{ url_for('marks.enter_component_marks', course_id=course.id, comp_type=row.type) }}">Enter &rarr;</a>
-                    {% else %}
+                    {% elif current_user.is_coordinator %}
                     <a href="{{ url_for('structure.manage_component', course_id=course.id, comp_type=row.type) }}">Set up structure &rarr;</a>
+                    {% else %}
+                    <span class="muted">ask your unit coordinator</span>
                     {% endif %}
                 </td>
             </tr>

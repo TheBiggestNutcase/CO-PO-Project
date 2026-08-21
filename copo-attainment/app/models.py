@@ -27,7 +27,18 @@ That's a deliberate improvement, not just a translation.
 """
 from datetime import datetime
 
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
+
 from app.extensions import db
+
+# The two roles: the Unit Coordinator sets everything up (COs, POs,
+# mapping, targets, assessment structure, roster) - the Teacher's job is
+# narrower, entering marks and viewing results for courses they've been
+# assigned to. See app/auth.py for how these are enforced.
+ROLE_COORDINATOR = "coordinator"
+ROLE_TEACHER = "teacher"
+ROLES = (ROLE_COORDINATOR, ROLE_TEACHER)
 
 
 class Course(db.Model):
@@ -73,6 +84,10 @@ class Course(db.Model):
     students = db.relationship(
         "Student", back_populates="course",
         cascade="all, delete-orphan", order_by="Student.seq",
+    )
+
+    teacher_assignments = db.relationship(
+        "CourseTeacher", back_populates="course", cascade="all, delete-orphan",
     )
 
     def __repr__(self):
@@ -277,4 +292,79 @@ class ExitSurveyResponse(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("student_id", "item_id", name="uq_survey_student_item"),
+    )
+
+
+class User(db.Model, UserMixin):
+    """A login for this app. There's exactly one Unit Coordinator (the
+    faculty member running the tool day to day, created on first launch -
+    see app/routes/auth_routes.py's setup_coordinator) plus however many
+    Teacher accounts the coordinator creates and assigns to specific
+    courses via CourseTeacher.
+
+    UserMixin (from Flask-Login) supplies is_authenticated/is_active/
+    is_anonymous/get_id so this plugs straight into login_user()/
+    current_user/@login_required without extra boilerplate.
+    """
+    __tablename__ = "user"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    display_name = db.Column(db.String(200), nullable=False, default="")
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default=ROLE_TEACHER)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    course_assignments = db.relationship(
+        "CourseTeacher", back_populates="teacher", cascade="all, delete-orphan",
+    )
+
+    def set_password(self, raw_password):
+        self.password_hash = generate_password_hash(raw_password)
+
+    def check_password(self, raw_password):
+        return check_password_hash(self.password_hash, raw_password)
+
+    @classmethod
+    def find_by_name(cls, name):
+        """Case-insensitive lookup by display name - this is what login
+        uses instead of a separate username, so "Arushi Arunkumar" and
+        "arushi arunkumar" both find the same account. `name` is matched
+        trimmed and case-folded."""
+        name = (name or "").strip()
+        if not name:
+            return None
+        return cls.query.filter(db.func.lower(cls.display_name) == name.lower()).first()
+
+    @property
+    def is_coordinator(self):
+        return self.role == ROLE_COORDINATOR
+
+    def can_access_course(self, course_id):
+        """Coordinators can access every course; teachers only the ones
+        they've been explicitly assigned to."""
+        if self.is_coordinator:
+            return True
+        return any(a.course_id == course_id for a in self.course_assignments)
+
+    def __repr__(self):
+        return f"<User {self.username} ({self.role})>"
+
+
+class CourseTeacher(db.Model):
+    """One teacher's assignment to one course - what lets that teacher log
+    in and see/enter marks for that course specifically, and nothing
+    else. A teacher can be assigned to more than one course; a course can
+    have more than one teacher assigned (co-teaching)."""
+    __tablename__ = "course_teacher"
+
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    course = db.relationship("Course", back_populates="teacher_assignments")
+    teacher = db.relationship("User", back_populates="course_assignments")
+
+    __table_args__ = (
+        db.UniqueConstraint("course_id", "teacher_id", name="uq_course_teacher"),
     )

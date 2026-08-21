@@ -7,7 +7,8 @@ EXIT_SURVEY: a student x question grid of A-E ratings.
 EXTERNAL: a student x (internal total, external marks, result) table,
 entered as totals - matches the template's manual "External" sheet.
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, abort
+from flask_login import current_user
 
 from app.extensions import db
 from app.models import (
@@ -17,8 +18,21 @@ from app.models import (
 from app.routes.structure_routes import COMPONENT_LABELS
 from app.models import COMPONENT_TYPES
 from app.roster_import import parse_roster_docx
+from app.auth import coordinator_required
 
 marks_bp = Blueprint("marks", __name__, url_prefix="/courses/<int:course_id>/marks")
+
+
+@marks_bp.before_request
+def _require_course_access():
+    """Baseline for the whole blueprint: coordinator (any course) or a
+    teacher assigned to *this* course_id. Roster management routes layer
+    an additional @coordinator_required on top, below."""
+    if not current_user.is_authenticated:
+        return current_app.login_manager.unauthorized()
+    course_id = request.view_args.get("course_id") if request.view_args else None
+    if course_id is None or not current_user.can_access_course(course_id):
+        abort(403)
 
 
 def _get_course_or_404(course_id):
@@ -43,6 +57,7 @@ def list_components(course_id):
 # ------------------------------------------------------------------ roster
 
 @marks_bp.route("/roster", methods=["GET", "POST"])
+@coordinator_required
 def manage_roster(course_id):
     course = _get_course_or_404(course_id)
     if request.method == "POST":
@@ -87,6 +102,7 @@ def manage_roster(course_id):
 
 
 @marks_bp.route("/roster/<int:student_id>/delete", methods=["POST"])
+@coordinator_required
 def delete_student(course_id, student_id):
     student = db.session.get(Student, student_id)
     if student and student.course_id == course_id:
@@ -99,12 +115,14 @@ def delete_student(course_id, student_id):
 # ----------------------------------------------------------- roster import
 
 @marks_bp.route("/roster/import", methods=["GET"])
+@coordinator_required
 def roster_import_form(course_id):
     course = _get_course_or_404(course_id)
     return render_template("marks/roster_import.html", course=course)
 
 
 @marks_bp.route("/roster/import/parse", methods=["POST"])
+@coordinator_required
 def roster_import_parse(course_id):
     course = _get_course_or_404(course_id)
     uploaded = request.files.get("roster")
@@ -145,6 +163,7 @@ def roster_import_parse(course_id):
 
 
 @marks_bp.route("/roster/import/confirm", methods=["POST"])
+@coordinator_required
 def roster_import_confirm(course_id):
     course = _get_course_or_404(course_id)
 

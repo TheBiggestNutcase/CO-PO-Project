@@ -5,10 +5,15 @@ create course -> COs -> POs -> mapping -> structure -> roster -> marks ->
 results - and catch integration bugs the unit tests can't (wrong redirect,
 missing auto-created rows, template errors).
 """
+import io
+import os
+
 import pytest
 
 from app import create_app
 from app.models import Course, CourseOutcome, ProgramOutcome, ExternalResult
+
+FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 
 
 @pytest.fixture()
@@ -76,3 +81,63 @@ def test_full_setup_flow_smoke(client):
     assert resp.status_code == 200
     assert b"CO1" in resp.data
     assert b"PO1" in resp.data
+
+
+def test_syllabus_import_full_flow_creates_course_and_cos(client):
+    """Upload -> review (pre-filled, editable) -> confirm should create the
+    course with the parsed COs, and nothing should be written to the
+    database before "confirm" is submitted."""
+    with open(os.path.join(FIXTURES, "sample_syllabus_che.pdf"), "rb") as f:
+        pdf_bytes = f.read()
+
+    parse_resp = client.post(
+        "/courses/import-syllabus/parse",
+        data={"syllabus": (io.BytesIO(pdf_bytes), "sample_syllabus_che.pdf")},
+        content_type="multipart/form-data",
+    )
+    assert parse_resp.status_code == 200
+    assert b"21CHE12/22" in parse_resp.data
+    assert b"ENGINEERING CHEMISTRY" in parse_resp.data
+    # Nothing should be saved just from parsing/reviewing.
+    assert Course.query.count() == 0
+
+    confirm_resp = client.post(
+        "/courses/import-syllabus/confirm",
+        data={
+            "subject_code": "21CHE12/22", "subject_name": "Engineering Chemistry",
+            "institution_name": "AMC Engineering College", "department": "Chemistry",
+            "faculty_name": "Test Faculty", "academic_year": "2025-26", "semester": "I",
+            "target_level1_pct": "50", "target_level2_pct": "60", "target_level3_pct": "70",
+            "internal_marks_cutoff_pct": "60",
+            "co_code": ["CO1", "CO2", "CO3", "CO4", "CO5", ""],
+            "co_description": [
+                "Discuss the electrochemical energy systems such as electrodes and batteries.",
+                "Explain the fundamental concepts of corrosion, its control and surface modification methods namely electroplating and electroless plating",
+                "Enumerate the importance, synthesis and applications of polymers.",
+                "Describe the principles of green chemistry.",
+                "Illustrate the fundamental principles of water chemistry.",
+                "",  # a spare, unused row
+            ],
+        },
+        follow_redirects=True,
+    )
+    assert confirm_resp.status_code == 200
+
+    course = Course.query.filter_by(subject_code="21CHE12/22").first()
+    assert course is not None
+    assert course.subject_name == "Engineering Chemistry"
+    cos = CourseOutcome.query.filter_by(course_id=course.id).order_by(CourseOutcome.seq).all()
+    assert [co.code for co in cos] == ["CO1", "CO2", "CO3", "CO4", "CO5"]
+    assert "electroplating" in cos[1].description
+
+
+def test_syllabus_import_rejects_non_pdf_upload(client):
+    resp = client.post(
+        "/courses/import-syllabus/parse",
+        data={"syllabus": (io.BytesIO(b"not a pdf"), "notes.txt")},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"doesn&#39;t look like a PDF" in resp.data or b"doesn't look like a PDF" in resp.data
+    assert Course.query.count() == 0

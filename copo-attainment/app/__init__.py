@@ -49,6 +49,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     from app.routes.structure_routes import structure_bp
     from app.routes.marks_routes import marks_bp
     from app.routes.results_routes import results_bp
+    from app.routes.import_routes import import_bp
     from app.routes.main_routes import main_bp
 
     app.register_blueprint(main_bp)
@@ -56,5 +57,6 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(structure_bp)
     app.register_blueprint(marks_bp)
     app.register_blueprint(results_bp)
+    app.register_blueprint(import_bp)
 
     return app

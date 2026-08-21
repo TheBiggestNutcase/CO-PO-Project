@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Review import{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('import_syllabus.upload_form') }}">&larr; Back to upload</a>
+    <h1>Review before creating the course</h1>
+    <p class="subtitle">Pulled from the PDF where possible - check everything below and fix anything wrong or missing. Nothing is saved until you click "Create course".</p>
+
+    {% if parsed.warnings %}
+    <div class="card warning">
+        <h3>Heads up</h3>
+        <ul style="margin: 0; padding-left: 18px;">
+            {% for w in parsed.warnings %}
+            <li>{{ w }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('import_syllabus.confirm') }}" class="card">
+        <h3>Subject details</h3>
+        <div class="field-row">
+            <div class="field">
+                <label for="institution_name">Institution</label>
+                <input type="text" id="institution_name" name="institution_name" value="">
+                <span class="hint">Not in the syllabus - enter it by hand.</span>
+            </div>
+            <div class="field">
+                <label for="department">Department</label>
+                <input type="text" id="department" name="department" value="">
+                <span class="hint">Not in the syllabus - enter it by hand.</span>
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field">
+                <label for="subject_code">Subject code</label>
+                <input type="text" id="subject_code" name="subject_code" required value="{{ parsed.subject_code or '' }}">
+            </div>
+            <div class="field">
+                <label for="subject_name">Subject name</label>
+                <input type="text" id="subject_name" name="subject_name" required value="{{ parsed.subject_name or '' }}">
+                <span class="hint">Copied as printed in the PDF (often all-caps) - edit the casing if you'd like.</span>
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field">
+                <label for="faculty_name">Faculty handling</label>
+                <input type="text" id="faculty_name" name="faculty_name" value="">
+                <span class="hint">Not in the syllabus - enter it by hand.</span>
+            </div>
+            <div class="field">
+                <label for="academic_year">Academic year (e.g. 2025-26)</label>
+                <input type="text" id="academic_year" name="academic_year" value="">
+                <span class="hint">Not in the syllabus - enter it by hand.</span>
+            </div>
+            <div class="field">
+                <label for="semester">Semester</label>
+                <input type="text" id="semester" name="semester" value="{{ parsed.semester or '' }}">
+            </div>
+        </div>
+
+        <h3>Attainment targets</h3>
+        <p class="muted" style="margin-top:-6px; max-width: 640px;">
+            Not in the syllabus either - these are the usual defaults (see the course edit page for what each
+            one means). Edit them now if your department uses different targets, or leave them and change
+            them later.
+        </p>
+        <div class="field-row">
+            <div class="field">
+                <label for="target_level1_pct">Level 1 target (%)</label>
+                <input type="number" step="0.1" id="target_level1_pct" name="target_level1_pct" value="50">
+            </div>
+            <div class="field">
+                <label for="target_level2_pct">Level 2 target (%)</label>
+                <input type="number" step="0.1" id="target_level2_pct" name="target_level2_pct" value="60">
+            </div>
+            <div class="field">
+                <label for="target_level3_pct">Level 3 target (%)</label>
+                <input type="number" step="0.1" id="target_level3_pct" name="target_level3_pct" value="70">
+            </div>
+            <div class="field">
+                <label for="internal_marks_cutoff_pct">Internal pass cutoff (%)</label>
+                <input type="number" step="0.1" id="internal_marks_cutoff_pct" name="internal_marks_cutoff_pct" value="60">
+            </div>
+        </div>
+
+        <h3>Course Outcomes</h3>
+        <p class="muted" style="margin-top:-6px;">
+            {{ parsed.outcomes|length }} found in the PDF, plus a few spare rows to add more by hand.
+            Leave a spare row's description blank to skip it.
+        </p>
+        <table class="plain">
+            <tr><th style="width:110px;">Code</th><th>Description</th></tr>
+            {% for row in outcome_rows %}
+            <tr>
+                <td><input type="text" name="co_code" value="{{ row.code if row else '' }}" placeholder="CO{{ loop.index }}"></td>
+                <td><input type="text" name="co_description" value="{{ row.description if row else '' }}"></td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <div class="btn-row">
+            <button type="submit">Create course</button>
+            <a class="btn secondary" href="{{ url_for('setup.list_courses') }}">Cancel</a>
+        </div>
+    </form>
+{% endblock %}

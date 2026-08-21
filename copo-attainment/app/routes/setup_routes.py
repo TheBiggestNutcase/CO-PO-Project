@@ -5,10 +5,12 @@ template's "set target form" sheet plus the mapping table at the top of
 "Course PO attainment".
 """
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask_login import current_user
 
 from app.extensions import db
 from app.models import Course, CourseOutcome, ProgramOutcome, COPOMapping
 from app.constants import STANDARD_PO_DESCRIPTIONS, STANDARD_POS
+from app.auth import coordinator_required
 
 setup_bp = Blueprint("setup", __name__, url_prefix="/courses")
 
@@ -24,11 +26,18 @@ def _get_course_or_404(course_id):
 
 @setup_bp.route("/")
 def list_courses():
-    courses = Course.query.order_by(Course.academic_year.desc(), Course.subject_code).all()
+    query = Course.query.order_by(Course.academic_year.desc(), Course.subject_code)
+    if current_user.is_coordinator:
+        courses = query.all()
+    else:
+        # Teachers only ever see the course(s) they've been assigned to.
+        assigned_ids = {a.course_id for a in current_user.course_assignments}
+        courses = [c for c in query.all() if c.id in assigned_ids]
     return render_template("courses/list.html", courses=courses)
 
 
 @setup_bp.route("/new", methods=["GET", "POST"])
+@coordinator_required
 def new_course():
     if request.method == "POST":
         course = Course()
@@ -41,12 +50,14 @@ def new_course():
 
 
 @setup_bp.route("/<int:course_id>")
+@coordinator_required
 def course_detail(course_id):
     course = _get_course_or_404(course_id)
     return render_template("courses/detail.html", course=course)
 
 
 @setup_bp.route("/<int:course_id>/edit", methods=["GET", "POST"])
+@coordinator_required
 def edit_course(course_id):
     course = _get_course_or_404(course_id)
     if request.method == "POST":
@@ -75,6 +86,7 @@ def _apply_course_form(course, form):
 # ------------------------------------------------------------- outcomes
 
 @setup_bp.route("/<int:course_id>/outcomes", methods=["GET", "POST"])
+@coordinator_required
 def manage_outcomes(course_id):
     course = _get_course_or_404(course_id)
     if request.method == "POST":
@@ -90,6 +102,7 @@ def manage_outcomes(course_id):
 
 
 @setup_bp.route("/<int:course_id>/outcomes/<int:co_id>/delete", methods=["POST"])
+@coordinator_required
 def delete_outcome(course_id, co_id):
     co = db.session.get(CourseOutcome, co_id)
     if co and co.course_id == course_id:
@@ -102,6 +115,7 @@ def delete_outcome(course_id, co_id):
 # ------------------------------------------------------- program outcomes
 
 @setup_bp.route("/<int:course_id>/program-outcomes", methods=["GET", "POST"])
+@coordinator_required
 def manage_program_outcomes(course_id):
     course = _get_course_or_404(course_id)
     if request.method == "POST":
@@ -137,6 +151,7 @@ def manage_program_outcomes(course_id):
 
 
 @setup_bp.route("/<int:course_id>/program-outcomes/<int:po_id>/delete", methods=["POST"])
+@coordinator_required
 def delete_program_outcome(course_id, po_id):
     po = db.session.get(ProgramOutcome, po_id)
     if po and po.course_id == course_id:
@@ -149,6 +164,7 @@ def delete_program_outcome(course_id, po_id):
 # -------------------------------------------------------------- mapping
 
 @setup_bp.route("/<int:course_id>/mapping", methods=["GET", "POST"])
+@coordinator_required
 def manage_mapping(course_id):
     course = _get_course_or_404(course_id)
 

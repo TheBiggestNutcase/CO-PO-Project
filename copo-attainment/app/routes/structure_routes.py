@@ -9,12 +9,23 @@ EXTERNAL has no items - its component row still gets created (so the
 course "has all 6 components set up"), but marks are entered directly as
 totals in the Marks Entry section, matching the template's External sheet.
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, abort
+from flask_login import current_user
 
 from app.extensions import db
 from app.models import Course, AssessmentComponent, AssessmentItem, ItemCOMapping, COMPONENT_TYPES
 
 structure_bp = Blueprint("structure", __name__, url_prefix="/courses/<int:course_id>/structure")
+
+
+@structure_bp.before_request
+def _require_coordinator():
+    """Everything under /structure is coordinator-only - a Teacher never
+    touches the assessment structure, only marks and results."""
+    if not current_user.is_authenticated:
+        return current_app.login_manager.unauthorized()
+    if not current_user.is_coordinator:
+        abort(403)
 
 COMPONENT_LABELS = {
     "IA1": "Internal Assessment Test 1",

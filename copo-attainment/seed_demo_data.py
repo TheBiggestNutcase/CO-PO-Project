@@ -28,8 +28,14 @@ from app.models import (
     Course, CourseOutcome, ProgramOutcome, COPOMapping,
     AssessmentComponent, AssessmentItem, ItemCOMapping,
     Student, Mark, ExternalResult, ExitSurveyResponse,
+    User, CourseTeacher, ROLE_COORDINATOR, ROLE_TEACHER,
 )
 from app.constants import STANDARD_PO_DESCRIPTIONS
+
+DEMO_COORDINATOR_NAME = "Demo Coordinator"
+DEMO_COORDINATOR_PASSWORD = "coordinator123"
+DEMO_TEACHER_NAME = "Demo Teacher"
+DEMO_TEACHER_PASSWORD = "teacher123"
 
 PSO_DESCRIPTIONS = {
     "PSO1": "Apply the principles of physics to analyze and troubleshoot problems in electronic and photonic devices.",
@@ -47,13 +53,16 @@ CO_DESCRIPTIONS = [
 ]
 
 # CO -> {PO: correlation level 1-3}, loosely modeled on the kind of
-# spread you'd see in a real mapping matrix (not every CO touches every PO).
+# spread you'd see in a real mapping matrix. Every PO/PSO is touched by
+# at least one CO here (some only lightly) so the Results page's PO/PSO
+# table is fully populated for a demo, rather than showing blank "-"
+# rows for whichever POs a sparser matrix happened to skip.
 CO_PO_CORRELATION = {
-    "CO1": {"PO1": 3, "PO2": 2, "PO12": 2},
-    "CO2": {"PO1": 3, "PO2": 3, "PO12": 2},
-    "CO3": {"PO1": 3, "PO2": 3, "PO3": 1, "PO12": 2},
-    "CO4": {"PO1": 3, "PO2": 2, "PO3": 1, "PO5": 1, "PO12": 2},
-    "CO5": {"PO1": 3, "PO2": 2, "PO3": 1, "PO5": 2, "PO8": 3, "PO9": 3, "PO12": 2},
+    "CO1": {"PO1": 3, "PO2": 2, "PO4": 1, "PO12": 2, "PSO1": 2},
+    "CO2": {"PO1": 3, "PO2": 3, "PO12": 2, "PSO1": 2},
+    "CO3": {"PO1": 3, "PO2": 3, "PO3": 1, "PO12": 2, "PSO1": 1},
+    "CO4": {"PO1": 3, "PO2": 2, "PO3": 1, "PO5": 1, "PO6": 2, "PO7": 1, "PO12": 2, "PSO1": 2, "PSO2": 1},
+    "CO5": {"PO1": 3, "PO2": 2, "PO3": 1, "PO5": 2, "PO8": 3, "PO9": 3, "PO10": 1, "PO11": 1, "PO12": 2, "PSO2": 3},
 }
 
 STANDARD_POS = [f"PO{i}" for i in range(1, 13)]
@@ -215,6 +224,33 @@ def build_demo(course_number_of_students=20, seed=7):
     return course
 
 
+def _ensure_demo_users(course):
+    """Only create the demo Coordinator/Teacher accounts if the app has no
+    users at all yet - i.e. you haven't already done the real first-run
+    coordinator setup. Never touches an app that's already in real use."""
+    if User.query.count() > 0:
+        print("Users already exist (you've done the coordinator setup) - not creating demo accounts.")
+        print(f"If you want a demo Teacher account, add one from the Teachers page and assign it to '{course.subject_code}'.")
+        return
+
+    coordinator = User(username=DEMO_COORDINATOR_NAME, display_name=DEMO_COORDINATOR_NAME, role=ROLE_COORDINATOR)
+    coordinator.set_password(DEMO_COORDINATOR_PASSWORD)
+    db.session.add(coordinator)
+
+    teacher = User(username=DEMO_TEACHER_NAME, display_name=DEMO_TEACHER_NAME, role=ROLE_TEACHER)
+    teacher.set_password(DEMO_TEACHER_PASSWORD)
+    db.session.add(teacher)
+    db.session.flush()
+
+    db.session.add(CourseTeacher(course_id=course.id, teacher_id=teacher.id))
+    db.session.commit()
+
+    print("Created two demo accounts so you can try out both roles (log in by name, not case-sensitive):")
+    print(f"  Unit Coordinator - name: {DEMO_COORDINATOR_NAME}   password: {DEMO_COORDINATOR_PASSWORD}")
+    print(f"  Teacher (assigned to {course.subject_code}) - name: {DEMO_TEACHER_NAME}   password: {DEMO_TEACHER_PASSWORD}")
+    print("Change these passwords (or just delete these accounts) before using the app for real.")
+
+
 def main():
     app = create_app()
     with app.app_context():
@@ -225,6 +261,7 @@ def main():
             return
         course = build_demo()
         print(f"Created demo course: {course.subject_code} - {course.subject_name} (id {course.id})")
+        _ensure_demo_users(course)
         print(f"Open http://localhost:8000/courses/{course.id} after running `python run.py`.")
 
 

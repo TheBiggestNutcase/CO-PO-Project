@@ -10,7 +10,13 @@
         {% if not students %}
         <p class="empty">Add students to the roster first.</p>
         {% elif not items %}
-        <p class="empty">No survey questions defined yet - <a href="{{ url_for('structure.manage_component', course_id=course.id, comp_type='EXIT_SURVEY') }}">set up the structure</a> first.</p>
+        <p class="empty">
+            {% if current_user.is_coordinator %}
+            No survey questions defined yet - <a href="{{ url_for('structure.manage_component', course_id=course.id, comp_type='EXIT_SURVEY') }}">set up the structure</a> first.
+            {% else %}
+            No survey questions defined yet - ask your unit coordinator to set up the structure first.
+            {% endif %}
+        </p>
         {% else %}
         <p class="muted" style="margin-top:-6px;">A = Excellent, B = Good, C = Average, D = Poor, E = Very Poor. Only A/B count towards attainment. Leave blank for no response.</p>
         <form method="post">

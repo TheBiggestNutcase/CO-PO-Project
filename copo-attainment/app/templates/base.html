@@ -11,9 +11,24 @@
         <a class="brand" href="{{ url_for('setup.list_courses') }}">CO-PO Attainment</a>
         {% if course %}
         <nav>
+            {% if current_user.is_authenticated and current_user.is_coordinator %}
             <a href="{{ url_for('setup.course_detail', course_id=course.id) }}"
                class="{{ 'active' if request.endpoint == 'setup.course_detail' }}">{{ course.subject_code }}</a>
+            {% else %}
+            <a href="{{ url_for('marks.list_components', course_id=course.id) }}">{{ course.subject_code }}</a>
+            {% endif %}
         </nav>
+        {% endif %}
+        {% if current_user.is_authenticated %}
+        <div class="topbar-user">
+            <span class="muted">{{ current_user.display_name }} &middot; {{ 'Unit Coordinator' if current_user.is_coordinator else 'Teacher' }}</span>
+            {% if current_user.is_coordinator %}
+            <a href="{{ url_for('auth.manage_teachers') }}" class="{{ 'active' if request.endpoint == 'auth.manage_teachers' }}">Teachers</a>
+            {% endif %}
+            <form method="post" action="{{ url_for('auth.logout') }}" style="display:inline;">
+                <button type="submit" class="secondary">Log out</button>
+            </form>
+        </div>
         {% endif %}
     </header>
     <main>

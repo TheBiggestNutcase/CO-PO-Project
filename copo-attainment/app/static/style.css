@@ -44,6 +44,20 @@ header.topbar nav a {
 
 header.topbar nav a:hover { color: var(--accent); }
 
+.topbar-user {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 13px;
+}
+.topbar-user a { color: var(--muted); text-decoration: none; }
+.topbar-user a:hover, .topbar-user a.active { color: var(--accent); }
+.topbar-user button.secondary {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
 main {
     max-width: 1100px;
     margin: 0 auto;

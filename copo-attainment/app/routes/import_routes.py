@@ -14,16 +14,19 @@ from app.extensions import db
 from app.models import Course, CourseOutcome
 from app.routes.setup_routes import _apply_course_form
 from app.syllabus_import import parse_syllabus_pdf
+from app.auth import coordinator_required
 
 import_bp = Blueprint("import_syllabus", __name__, url_prefix="/courses/import-syllabus")
 
 
 @import_bp.route("/", methods=["GET"])
+@coordinator_required
 def upload_form():
     return render_template("courses/import_syllabus.html")
 
 
 @import_bp.route("/parse", methods=["POST"])
+@coordinator_required
 def parse():
     uploaded = request.files.get("syllabus")
     if not uploaded or uploaded.filename == "":
@@ -58,6 +61,7 @@ def parse():
 
 
 @import_bp.route("/confirm", methods=["POST"])
+@coordinator_required
 def confirm():
     course = Course()
     _apply_course_form(course, request.form)

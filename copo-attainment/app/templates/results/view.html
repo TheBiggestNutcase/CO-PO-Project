@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Results - {{ course.subject_code }}{% endblock %}
 {% block content %}
+    {% if current_user.is_coordinator %}
     <a class="back-link" href="{{ url_for('setup.course_detail', course_id=course.id) }}">&larr; Back to course overview</a>
+    {% else %}
+    <a class="back-link" href="{{ url_for('marks.list_components', course_id=course.id) }}">&larr; Back to Marks Entry</a>
+    {% endif %}
     <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
     {% include "courses/_nav.html" %}
 

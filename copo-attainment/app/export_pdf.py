@@ -142,7 +142,7 @@ def _course_header(course, subtitle):
 def _info_line(course):
     text = (
         f"<b>Subject:</b> {course.subject_code} - {course.subject_name} &nbsp;&nbsp; "
-        f"<b>Faculty:</b> {course.faculty_name or '-'} &nbsp;&nbsp; "
+        f"<b>Faculty:</b> {course.faculty_display or '-'} &nbsp;&nbsp; "
         f"<b>Academic Year:</b> {course.academic_year or '-'} &nbsp;&nbsp; "
         f"<b>Semester:</b> {course.semester or '-'}"
     )

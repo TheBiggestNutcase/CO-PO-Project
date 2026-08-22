@@ -88,7 +88,7 @@ def build_demo(course_number_of_students=20, seed=7):
         subject_name="Engineering Physics",
         faculty_name="Nithin H M",
         academic_year="2025-26",
-        semester="II",
+        semester="2",
         target_level1_pct=50, target_level2_pct=60, target_level3_pct=70,
         internal_marks_cutoff_pct=60,
     )

@@ -9,12 +9,13 @@
         <h3>Student roster ({{ course.students|length }})</h3>
         {% if course.students %}
         <table class="plain">
-            <tr><th>#</th><th>USN</th><th>Name</th><th></th></tr>
+            <tr><th>#</th><th>USN</th><th>Name</th>{% if course.sections_list %}<th>Section</th>{% endif %}<th></th></tr>
             {% for s in course.students %}
             <tr>
                 <td>{{ s.seq }}</td>
                 <td>{{ s.usn }}</td>
                 <td>{{ s.name }}</td>
+                {% if course.sections_list %}<td>{{ s.section or '-' }}</td>{% endif %}
                 <td>
                     <form method="post" action="{{ url_for('marks.delete_student', course_id=course.id, student_id=s.id) }}"
                           onsubmit="return confirm('Remove {{ s.name }}? This also removes all their marks/responses.');">
@@ -42,6 +43,17 @@
                     <label for="name">Name</label>
                     <input type="text" id="name" name="name" required>
                 </div>
+                {% if course.sections_list %}
+                <div class="field">
+                    <label for="section">Section</label>
+                    <select id="section" name="section">
+                        <option value="">-</option>
+                        {% for sec in course.sections_list %}
+                        <option value="{{ sec }}">{{ sec }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
             </div>
             <button type="submit">+ Add student</button>
         </form>
@@ -49,11 +61,14 @@
 
     <div class="card">
         <h3>Add several at once</h3>
-        <p class="muted" style="margin-top:-6px;">One student per line, as <code>USN, Name</code>.</p>
+        <p class="muted" style="margin-top:-6px;">
+            One student per line, as <code>USN, Name</code>{% if course.sections_list %} - or, since this course
+            covers more than one section, <code>USN, Name, Section</code>{% endif %}.
+        </p>
         <form method="post">
             <input type="hidden" name="action" value="add_bulk">
             <div class="field">
-                <textarea name="bulk_text" rows="8" placeholder="1AM21PH001, Aditi Rao&#10;1AM21PH002, Rahul Shetty"></textarea>
+                <textarea name="bulk_text" rows="8" placeholder="{% if course.sections_list %}1AM21PH001, Aditi Rao, A&#10;1AM21PH002, Rahul Shetty, B{% else %}1AM21PH001, Aditi Rao&#10;1AM21PH002, Rahul Shetty{% endif %}"></textarea>
             </div>
             <button type="submit">+ Add students</button>
         </form>

@@ -20,6 +20,9 @@ from app.models import COMPONENT_TYPES
 from app.roster_import import parse_roster_docx
 from app.exit_survey_import import parse_exit_survey_file
 from app.auth import coordinator_required
+from app.engine import ia_dropped_item_ids
+
+IA_TYPES = ("IA1", "IA2", "IA3")
 
 marks_bp = Blueprint("marks", __name__, url_prefix="/courses/<int:course_id>/marks")
 
@@ -66,12 +69,13 @@ def manage_roster(course_id):
         if action == "add_one":
             usn = request.form.get("usn", "").strip()
             name = request.form.get("name", "").strip()
+            section = request.form.get("section", "").strip()
             if usn and name:
                 if Student.query.filter_by(course_id=course.id, usn=usn).first():
                     flash(f"A student with USN {usn} already exists.", "error")
                 else:
                     next_seq = (max((s.seq for s in course.students), default=0)) + 1
-                    db.session.add(Student(course_id=course.id, seq=next_seq, usn=usn, name=name))
+                    db.session.add(Student(course_id=course.id, seq=next_seq, usn=usn, name=name, section=section))
                     db.session.commit()
                     flash(f"Added {name}.", "success")
         elif action == "add_bulk":
@@ -84,16 +88,21 @@ def manage_roster(course_id):
                 line = line.strip()
                 if not line:
                     continue
-                parts = [p.strip() for p in line.split(",", 1)]
-                if len(parts) != 2 or not parts[0] or not parts[1]:
+                # "USN, Name" (2 parts) or, for a multi-section course,
+                # "USN, Name, Section" (3 parts) - maxsplit=2 so a name
+                # itself containing a comma still only splits into at
+                # most 3 pieces rather than more.
+                parts = [p.strip() for p in line.split(",", 2)]
+                if len(parts) < 2 or not parts[0] or not parts[1]:
                     skipped += 1
                     continue
-                usn, name = parts
+                usn, name = parts[0], parts[1]
+                section = parts[2] if len(parts) == 3 else ""
                 if usn in existing_usns:
                     skipped += 1
                     continue
                 next_seq += 1
-                db.session.add(Student(course_id=course.id, seq=next_seq, usn=usn, name=name))
+                db.session.add(Student(course_id=course.id, seq=next_seq, usn=usn, name=name, section=section))
                 existing_usns.add(usn)
                 added += 1
             db.session.commit()
@@ -166,35 +175,50 @@ def roster_import_parse(course_id):
 @marks_bp.route("/roster/import/confirm", methods=["POST"])
 @coordinator_required
 def roster_import_confirm(course_id):
+    """Imports every section the coordinator ticked "Import this
+    section" for, in one submission - not just one section at a time -
+    so a course spanning several sections (see Course.sections_list) can
+    pull its whole roster from one uploaded roster document in a single
+    step. Each section's rows are namespaced in the form as
+    usn__<label>/name__<label> (see roster_import_review.html)."""
     course = _get_course_or_404(course_id)
 
     existing_usns = {s.usn for s in course.students}
     next_seq = max((s.seq for s in course.students), default=0)
-    added = 0
-    skipped = 0
+    total_added = 0
+    total_skipped = 0
+    imported_labels = []
 
-    usns = request.form.getlist("usn")
-    names = request.form.getlist("name")
-    for usn, name in zip(usns, names):
-        usn = usn.strip()
-        name = name.strip()
-        if not usn or not name:
-            continue  # a spare/blank row
-        if usn in existing_usns:
-            skipped += 1
-            continue
-        next_seq += 1
-        db.session.add(Student(course_id=course.id, seq=next_seq, usn=usn, name=name))
-        existing_usns.add(usn)
-        added += 1
+    included_sections = request.form.getlist("include_section")
+    for label in included_sections:
+        usns = request.form.getlist(f"usn__{label}")
+        names = request.form.getlist(f"name__{label}")
+        added_here = 0
+        for usn, name in zip(usns, names):
+            usn = usn.strip()
+            name = name.strip()
+            if not usn or not name:
+                continue  # a spare/blank row
+            if usn in existing_usns:
+                total_skipped += 1
+                continue
+            next_seq += 1
+            db.session.add(Student(course_id=course.id, seq=next_seq, usn=usn, name=name, section=label))
+            existing_usns.add(usn)
+            added_here += 1
+            total_added += 1
+        if added_here:
+            imported_labels.append(label)
 
     db.session.commit()
-    section_label = request.form.get("section_label", "").strip()
-    flash(
-        f"Imported {added} student(s) from Section {section_label}."
-        + (f" Skipped {skipped} (already on the roster)." if skipped else ""),
-        "success",
-    )
+    if imported_labels:
+        flash(
+            f"Imported {total_added} student(s) from Section(s) {', '.join(imported_labels)}."
+            + (f" Skipped {total_skipped} (already on the roster)." if total_skipped else ""),
+            "success",
+        )
+    else:
+        flash("No sections were selected to import.", "error")
     return redirect(url_for("marks.manage_roster", course_id=course.id))
 
 
@@ -259,9 +283,27 @@ def _enter_item_marks(course, component, comp_type):
         for m in Mark.query.filter(Mark.student_id.in_(student_ids), Mark.item_id.in_(item_ids)).all():
             marks_lookup[(m.student_id, m.item_id)] = m.marks_obtained
 
+    # For IA1/IA2/IA3: show each student's effective total under the
+    # either/or rule (higher of Q1/Q2 + higher of Q3/Q4, see
+    # app/engine.py) and which main question got dropped, if any - so a
+    # coordinator can see the grading rule actually applied, not just
+    # trust it happened silently at Results time.
+    ia_summary = None
+    if comp_type in IA_TYPES and items:
+        ia_summary = {}
+        for student in students:
+            dropped_ids = ia_dropped_item_ids(items, marks_lookup, student.id)
+            kept_total = sum(
+                marks_lookup.get((student.id, item.id), 0.0)
+                for item in items if item.id not in dropped_ids
+            )
+            dropped_mqs = sorted({item.main_question for item in items if item.id in dropped_ids})
+            ia_summary[student.id] = {"total": kept_total, "dropped": dropped_mqs}
+
     return render_template(
         "marks/item_grid.html", course=course, component=component, comp_type=comp_type,
         label=COMPONENT_LABELS[comp_type], items=items, students=students, marks_lookup=marks_lookup,
+        ia_summary=ia_summary,
     )
 
 

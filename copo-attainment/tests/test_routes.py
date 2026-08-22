@@ -87,7 +87,7 @@ def test_full_setup_flow_smoke(client):
     }, follow_redirects=True)
 
     client.post(f"/courses/{course_id}/structure/IA1",
-                data={"label": "1A", "max_marks": "10", "co_ids": [str(cos[0].id)]}, follow_redirects=True)
+                data={"label": "1a", "max_marks": "10", "main_question": "1", "co_ids": [str(cos[0].id)]}, follow_redirects=True)
     client.post(f"/courses/{course_id}/structure/EXIT_SURVEY",
                 data={"label": "Q1", "co_ids": [str(cos[0].id)]}, follow_redirects=True)
 
@@ -123,7 +123,7 @@ def test_syllabus_import_full_flow_creates_course_and_cos(client):
         data={
             "subject_code": "21CHE12/22", "subject_name": "Engineering Chemistry",
             "institution_name": "AMC Engineering College", "department": "Chemistry",
-            "faculty_name": "Test Faculty", "academic_year": "2025-26", "semester": "I",
+            "faculty_name": "Test Faculty", "academic_year": "2025-26", "semester": "1",
             "target_level1_pct": "50", "target_level2_pct": "60", "target_level3_pct": "70",
             "internal_marks_cutoff_pct": "60",
             "co_code": ["CO1", "CO2", "CO3", "CO4", "CO5", ""],
@@ -161,9 +161,9 @@ def test_syllabus_import_rejects_non_pdf_upload(client):
 
 
 def test_roster_import_full_flow_imports_one_section_only(client):
-    """Upload -> review (one form per detected section) -> confirm just
-    Section B should add only Section B's students to this course's
-    roster, leaving the other three sections out entirely."""
+    """Upload -> review (a checkbox per detected section) -> confirm with
+    just Section B ticked should add only Section B's students to this
+    course's roster, leaving the other three sections out entirely."""
     from app.models import Student
 
     client.post("/courses/new", data={
@@ -183,11 +183,11 @@ def test_roster_import_full_flow_imports_one_section_only(client):
     assert b"Section A" in parse_resp.data
     assert b"Section B" in parse_resp.data
     assert b"Section D" in parse_resp.data
-    assert b"Matches this course" in parse_resp.data  # course.section == "B"
+    assert b"Matches this course" in parse_resp.data  # "B" in course.sections_list
     assert Student.query.count() == 0  # nothing saved just from parsing/reviewing
 
-    # Simulate submitting only Section B's form: its USNs/names, taken
-    # straight from the parsed data (39th-38th student onward included).
+    # Simulate ticking only Section B's checkbox: its USNs/names, taken
+    # straight from the parsed data.
     from app.roster_import import parse_roster_docx
     with open(os.path.join(FIXTURES, "sample_roster.docx"), "rb") as f:
         parsed = parse_roster_docx(f)
@@ -196,9 +196,9 @@ def test_roster_import_full_flow_imports_one_section_only(client):
     confirm_resp = client.post(
         f"/courses/{course_id}/marks/roster/import/confirm",
         data={
-            "section_label": "B",
-            "usn": [s.usn for s in section_b.students],
-            "name": [s.name for s in section_b.students],
+            "include_section": ["B"],
+            "usn__B": [s.usn for s in section_b.students],
+            "name__B": [s.name for s in section_b.students],
         },
         follow_redirects=True,
     )
@@ -206,9 +206,52 @@ def test_roster_import_full_flow_imports_one_section_only(client):
 
     students = Student.query.filter_by(course_id=course_id).all()
     assert len(students) == len(section_b.students) == 69
-    assert Student.query.filter_by(course_id=course_id, usn="1AM23CS064").first() is not None
+    imported = Student.query.filter_by(course_id=course_id, usn="1AM23CS064").first()
+    assert imported is not None
+    assert imported.section == "B"  # tagged with the section it was imported from
     # Section A's students must not have been imported.
     assert Student.query.filter_by(course_id=course_id, usn="1AM23CS040").first() is None
+
+
+def test_roster_import_can_import_multiple_sections_at_once(client):
+    """A course spanning more than one section (Course.sections_list) can
+    pull its whole roster from one uploaded document in a single
+    confirm - ticking more than one section's checkbox at once."""
+    from app.models import Student
+    from app.roster_import import parse_roster_docx
+
+    client.post("/courses/new", data={
+        "subject_code": "21CS33", "subject_name": "Analog and Digital Electronics", "section": "A, B",
+    }, follow_redirects=True)
+    course_id = Course.query.first().id
+
+    with open(os.path.join(FIXTURES, "sample_roster.docx"), "rb") as f:
+        parsed = parse_roster_docx(f)
+    section_a = next(s for s in parsed.sections if s.label == "A")
+    section_b = next(s for s in parsed.sections if s.label == "B")
+
+    confirm_resp = client.post(
+        f"/courses/{course_id}/marks/roster/import/confirm",
+        data={
+            "include_section": ["A", "B"],
+            "usn__A": [s.usn for s in section_a.students],
+            "name__A": [s.name for s in section_a.students],
+            "usn__B": [s.usn for s in section_b.students],
+            "name__B": [s.name for s in section_b.students],
+        },
+        follow_redirects=True,
+    )
+    assert confirm_resp.status_code == 200
+
+    students = Student.query.filter_by(course_id=course_id).all()
+    # Both sections' students landed on the roster in one confirm - not
+    # necessarily the exact sum of both, since a USN appearing in more
+    # than one section's parsed list is only ever added once.
+    assert len(students) > max(len(section_a.students), len(section_b.students))
+    a_student = Student.query.filter_by(course_id=course_id, usn="1AM23CS040").first()
+    b_student = Student.query.filter_by(course_id=course_id, usn="1AM23CS064").first()
+    assert a_student is not None and a_student.section == "A"
+    assert b_student is not None and b_student.section == "B"
 
 
 def test_roster_import_skips_duplicate_usns_already_on_roster(client):
@@ -222,9 +265,9 @@ def test_roster_import_skips_duplicate_usns_already_on_roster(client):
     resp = client.post(
         f"/courses/{course_id}/marks/roster/import/confirm",
         data={
-            "section_label": "B",
-            "usn": ["1AM23CS064", "1AM23CS999"],
-            "name": ["Duplicate Student", "New Student"],
+            "include_section": ["B"],
+            "usn__B": ["1AM23CS064", "1AM23CS999"],
+            "name__B": ["Duplicate Student", "New Student"],
         },
         follow_redirects=True,
     )

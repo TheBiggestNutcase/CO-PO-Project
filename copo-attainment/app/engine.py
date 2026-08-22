@@ -68,6 +68,72 @@ def level_for_percentage(pct: float | None, course) -> int | None:
     return 3
 
 
+IA_EITHER_OR_PAIRS = ((1, 2), (3, 4))
+
+
+def ia_group_totals(items, marks_lookup, student_id):
+    """dict[main_question] -> summed marks_obtained across that main
+    question's sub-part items, for one student - only counting items
+    with an actual Mark row (mirrors the rest of this module's
+    "attempted" rule: a blank cell doesn't count as a zero). Items with
+    no main_question set (legacy, pre-dating this grouping - see
+    AssessmentItem.main_question) are excluded from the grouping
+    entirely, not folded into any group."""
+    totals = {}
+    for item in items:
+        if item.main_question is None:
+            continue
+        mark = marks_lookup.get((student_id, item.id))
+        if mark is None:
+            continue
+        totals[item.main_question] = totals.get(item.main_question, 0.0) + mark
+    return totals
+
+
+def ia_dropped_item_ids(component_items, marks_lookup, student_id):
+    """Which item ids to EXCLUDE for this student within one IA
+    component, under the paper's either/or design: of main questions
+    {1, 2}, only the higher-scoring one counts; same for {3, 4} - so a
+    student who (incorrectly) answered both members of a pair still
+    only gets credit for the better one, exactly like a real examiner
+    only grading the required 2 of 4. Ties keep the lower-numbered
+    question (arbitrary but deterministic).
+
+    Returns an empty set - i.e. no filtering at all - for a component
+    that has no main_question-grouped items yet, so pre-existing data
+    from before this feature existed keeps behaving exactly as it did.
+    """
+    if not any(i.main_question is not None for i in component_items):
+        return set()
+
+    totals = ia_group_totals(component_items, marks_lookup, student_id)
+    dropped_ids = set()
+    for lower, higher in IA_EITHER_OR_PAIRS:
+        lower_total = totals.get(lower, 0.0)
+        higher_total = totals.get(higher, 0.0)
+        loser = higher if lower_total >= higher_total else lower
+        dropped_ids.update(item.id for item in component_items if item.main_question == loser)
+    return dropped_ids
+
+
+def ia_effective_marks_lookup(course, marks_lookup):
+    """A copy of `marks_lookup` with the dropped side of each IA
+    either/or pair (see ia_dropped_item_ids) removed for every student,
+    for every IA1/IA2/IA3 component. ASQM, Exit Survey, and any IA
+    component with no grouped items pass through completely unchanged.
+    Downstream CO-attainment code then just sums whatever's left in the
+    lookup, with no need to know the grouping/dropping rule exists at
+    all - a dropped item simply looks identical to "not attempted."""
+    effective = dict(marks_lookup)
+    for component in course.components:
+        if component.type not in ("IA1", "IA2", "IA3") or not component.items:
+            continue
+        for student in course.students:
+            for item_id in ia_dropped_item_ids(component.items, marks_lookup, student.id):
+                effective.pop((student.id, item_id), None)
+    return effective
+
+
 def marks_based_co_attainment(students, items, marks_lookup, cutoff_pct):
     """CO attainment % for one marks-based bucket (IA-combined or ASQM),
     restricted to `items` (already filtered to the items tagged to a
@@ -207,6 +273,10 @@ def compute_course_attainment(course) -> CourseAttainmentResult:
         (m.student_id, m.item_id): m.marks_obtained
         for m in Mark.query.filter(Mark.student_id.in_(student_ids)).all()
     } if student_ids else {}
+    # Apply the IA either/or grading rule (see ia_effective_marks_lookup)
+    # before anything downstream sums marks per CO, so a dropped main
+    # question never contributes to attainment.
+    marks_lookup = ia_effective_marks_lookup(course, marks_lookup)
 
     responses_by_item: dict[int, list[str]] = {item.id: [] for item in exit_items}
     if exit_items:

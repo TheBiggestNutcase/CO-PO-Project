@@ -67,7 +67,7 @@ def _build_populated_course(client):
     }, follow_redirects=True)
 
     client.post(f"/courses/{course_id}/structure/IA1",
-                data={"label": "1A", "max_marks": "10", "co_ids": [str(cos[0].id)]}, follow_redirects=True)
+                data={"label": "1a", "max_marks": "10", "main_question": "1", "co_ids": [str(cos[0].id)]}, follow_redirects=True)
     client.post(f"/courses/{course_id}/structure/EXIT_SURVEY",
                 data={"label": "Q1", "co_ids": [str(cos[1].id)]}, follow_redirects=True)
 

@@ -67,6 +67,15 @@ class Course(db.Model):
     semester = db.Column(db.String(20), nullable=False, default="")
     section = db.Column(db.String(10), nullable=False, default="")
 
+    # The Unit Coordinator who owns this course - set automatically to
+    # whichever Coordinator created it. Used for reporting ("faculty
+    # handled") alongside the Teacher accounts assigned via
+    # CourseTeacher; see faculty_display below. Nullable because courses
+    # created before this field existed won't have one, and
+    # can_access_course()'s "any Coordinator can access any course" rule
+    # is unchanged by this - it's descriptive, not an access-control gate.
+    coordinator_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+
     # Level 1/2/3 targets - "% of students" that must clear the cutoff.
     # These are the E14:E16 cells in 'set target form' (used, per the
     # template's own CO-attainment formula, as the ladder for the FINAL
@@ -102,8 +111,38 @@ class Course(db.Model):
         "CourseTeacher", back_populates="course", cascade="all, delete-orphan",
     )
 
+    coordinator = db.relationship("User", foreign_keys=[coordinator_id])
+
     def __repr__(self):
         return f"<Course {self.subject_code} {self.academic_year}>"
+
+    @property
+    def sections_list(self):
+        """The section(s) this course covers, parsed from the comma-
+        separated `section` field (e.g. "A, B, C" -> ["A", "B", "C"]).
+        Empty list means the course doesn't split its roster by section
+        at all - the common case for a course taught to just one class."""
+        if not self.section:
+            return []
+        return [s.strip() for s in self.section.split(",") if s.strip()]
+
+    @property
+    def faculty_display(self):
+        """Who taught this course, for reports (replaces a single free-
+        text name): the Unit Coordinator plus every Teacher account
+        assigned via CourseTeacher - each of them takes the course for
+        at least one class. Falls back to the free-text faculty_name
+        field when no accounts are linked yet, so older courses (or ones
+        set up before any Teacher account existed) still show something
+        rather than a blank report."""
+        names = []
+        if self.coordinator is not None and self.coordinator.display_name:
+            names.append(self.coordinator.display_name)
+        for assignment in self.teacher_assignments:
+            name = assignment.teacher.display_name
+            if name and name not in names:
+                names.append(name)
+        return ", ".join(names) if names else self.faculty_name
 
 
 class CourseOutcome(db.Model):
@@ -198,6 +237,17 @@ class AssessmentItem(db.Model):
 
     max_marks applies to IA/ASQM items. Exit-survey items don't use
     max_marks (they're rated, not scored) - it stays null for those.
+
+    main_question (1-4) only applies to IA1/IA2/IA3 items: a real IA
+    paper is four main questions, each with sub-parts (a, b, c...) that
+    this row represents one of. A main question's sub-parts must sum to
+    20 marks max (enforced in app/routes/structure_routes.py at
+    add-item time), and a student's final IA score only counts the
+    higher-scoring of {main question 1, 2} plus the higher-scoring of
+    {3, 4} - see app/engine.py's ia_effective_marks_lookup for where
+    that either/or rule is actually applied. None for ASQM/EXIT_SURVEY
+    items (no such grouping there) and for IA items created before this
+    field existed (treated as ungrouped/uncapped - see engine.py).
     """
     __tablename__ = "assessment_item"
 
@@ -206,6 +256,7 @@ class AssessmentItem(db.Model):
     seq = db.Column(db.Integer, nullable=False)
     label = db.Column(db.String(30), nullable=False)  # "1A", "Q3", ...
     max_marks = db.Column(db.Float, nullable=True)
+    main_question = db.Column(db.Integer, nullable=True)
 
     component = db.relationship("AssessmentComponent", back_populates="items")
     co_links = db.relationship(
@@ -236,6 +287,12 @@ class Student(db.Model):
     seq = db.Column(db.Integer, nullable=False)  # roster order (like Sl.No.)
     usn = db.Column(db.String(30), nullable=False)
     name = db.Column(db.String(200), nullable=False)
+    # Which of the course's sections (see Course.sections_list) this
+    # student belongs to - blank/None for a course that doesn't split
+    # its roster by section at all. Purely informational/filtering; it
+    # doesn't affect COs/POs/mapping/structure, which stay shared across
+    # every section of a course.
+    section = db.Column(db.String(10), nullable=True, default="")
 
     course = db.relationship("Course", back_populates="students")
 

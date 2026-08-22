@@ -235,7 +235,7 @@ def _fill_set_target_form(ws, course, cos):
     ws["E2"] = f"DEPARTMENT OF {course.department.upper()}" if course.department else ""
     ws["D4"], ws["E4"] = "Sub code: ", course.subject_code
     ws["F4"], ws["G4"] = "Sub name:", course.subject_name
-    ws["D6"] = course.faculty_name
+    ws["D6"] = course.faculty_display
     ws["D7"], ws["E7"] = "Academic Year:", course.academic_year
     ws["F7"], ws["G7"] = "Sem :", course.semester
 
@@ -299,7 +299,7 @@ def _write_common_header(ws, course, title):
     ws.cell(row=HEADER_ROW_SUBCODE, column=9, value="Sem:")
     ws.cell(row=HEADER_ROW_SUBCODE, column=10, value=course.semester)
     ws.cell(row=HEADER_ROW_FACULTY, column=2, value="Names of Faculty handled:")
-    ws.cell(row=HEADER_ROW_FACULTY, column=4, value=course.faculty_name)
+    ws.cell(row=HEADER_ROW_FACULTY, column=4, value=course.faculty_display)
     for r in (HEADER_ROW_TITLE, HEADER_ROW_DEPT, HEADER_ROW_SUBTITLE):
         c = ws.cell(row=r, column=1)
         c.font = Font(name="Times New Roman", size=12 if r == HEADER_ROW_TITLE else 10, bold=True)

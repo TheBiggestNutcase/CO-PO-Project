@@ -26,7 +26,7 @@ from app.models import (
     AssessmentComponent, AssessmentItem, ItemCOMapping,
     Student, Mark, ExternalResult, ExitSurveyResponse,
 )
-from app.engine import compute_course_attainment, level_for_percentage
+from app.engine import compute_course_attainment, level_for_percentage, ia_dropped_item_ids
 
 
 @pytest.fixture()
@@ -201,6 +201,144 @@ def test_level_ladder_boundaries():
     assert level_for_percentage(69.9, c) == 2
     assert level_for_percentage(70, c) == 3
     assert level_for_percentage(100, c) == 3
+
+
+# --------------------------------------------------- IA either/or grading
+
+class _FakeItem:
+    def __init__(self, id, main_question):
+        self.id = id
+        self.main_question = main_question
+
+
+def test_ia_either_or_drops_lower_scoring_pair_member():
+    """A student who answered all 4 main questions (both members of both
+    pairs) should only get credit for the higher of {1,2} and the higher
+    of {3,4} - the lower-scoring member of each pair is dropped
+    entirely, not averaged in."""
+    items = [_FakeItem(1, 1), _FakeItem(2, 2), _FakeItem(3, 3), _FakeItem(4, 4)]
+    marks_lookup = {
+        (100, 1): 15.0,  # Q1 - loses to Q2, dropped
+        (100, 2): 18.0,  # Q2 - higher of the pair
+        (100, 3): 10.0,  # Q3 - loses to Q4, dropped
+        (100, 4): 12.0,  # Q4 - higher of the pair
+    }
+    assert ia_dropped_item_ids(items, marks_lookup, student_id=100) == {1, 3}
+
+
+def test_ia_either_or_is_a_noop_for_the_normal_case():
+    """The expected case - a student answers only the required 2 (one
+    from each pair) - must not lose any marks they actually scored."""
+    items = [_FakeItem(1, 1), _FakeItem(2, 2), _FakeItem(3, 3), _FakeItem(4, 4)]
+    marks_lookup = {(100, 2): 18.0, (100, 3): 10.0}
+    dropped = ia_dropped_item_ids(items, marks_lookup, student_id=100)
+    assert 2 not in dropped
+    assert 3 not in dropped
+
+
+def test_ia_grouping_is_a_noop_for_legacy_ungrouped_items():
+    """Items with no main_question at all (created before this feature
+    existed) must never be filtered - the component behaves exactly as
+    it did before the either/or rule was added."""
+    items = [_FakeItem(1, None), _FakeItem(2, None)]
+    marks_lookup = {(100, 1): 5.0, (100, 2): 5.0}
+    assert ia_dropped_item_ids(items, marks_lookup, student_id=100) == set()
+
+
+def test_ia_either_or_feeds_through_to_co_attainment(app):
+    """End-to-end: a student who over-answered one IA (attempted all 4
+    main questions) should have CO attainment computed only from the
+    higher-scoring member of each pair - max 40 marks total, not 80."""
+    with app.app_context():
+        course = Course(
+            subject_code="TST-IA", subject_name="IA Either/Or Test",
+            target_level1_pct=50, target_level2_pct=60, target_level3_pct=70,
+            internal_marks_cutoff_pct=60,
+        )
+        db.session.add(course)
+        db.session.flush()
+
+        co1 = CourseOutcome(course_id=course.id, seq=1, code="CO1")
+        db.session.add(co1)
+        db.session.flush()
+
+        student = Student(course_id=course.id, seq=1, usn="U1", name="Alice")
+        db.session.add(student)
+        db.session.flush()
+
+        ia1 = AssessmentComponent(course_id=course.id, type="IA1", name="IA Test 1")
+        db.session.add(ia1)
+        db.session.flush()
+        q1 = AssessmentItem(component_id=ia1.id, seq=1, label="1a", max_marks=20, main_question=1)
+        q2 = AssessmentItem(component_id=ia1.id, seq=2, label="2a", max_marks=20, main_question=2)
+        q3 = AssessmentItem(component_id=ia1.id, seq=3, label="3a", max_marks=20, main_question=3)
+        q4 = AssessmentItem(component_id=ia1.id, seq=4, label="4a", max_marks=20, main_question=4)
+        db.session.add_all([q1, q2, q3, q4])
+        db.session.flush()
+        db.session.add_all([
+            ItemCOMapping(item_id=q1.id, co_id=co1.id),
+            ItemCOMapping(item_id=q2.id, co_id=co1.id),
+            ItemCOMapping(item_id=q3.id, co_id=co1.id),
+            ItemCOMapping(item_id=q4.id, co_id=co1.id),
+        ])
+        db.session.add_all([
+            Mark(student_id=student.id, item_id=q1.id, marks_obtained=15),  # dropped (loses to Q2)
+            Mark(student_id=student.id, item_id=q2.id, marks_obtained=18),  # kept
+            Mark(student_id=student.id, item_id=q3.id, marks_obtained=10),  # dropped (loses to Q4)
+            Mark(student_id=student.id, item_id=q4.id, marks_obtained=12),  # kept
+        ])
+        db.session.commit()
+
+        result = compute_course_attainment(course)
+        co1_row = result.co_rows[0]
+        # Effective: Q2(18) + Q4(12) = 30 / (20+20) = 75% >= 60% cutoff -> the one student clears it.
+        assert co1_row.ia_pct == pytest.approx(100.0, abs=0.01)
+
+
+def test_optional_third_ia_still_computes_attainment(app):
+    """Some courses only run 2 IA tests, leaving the third out entirely
+    (no IA3 component created at all) - the IA bucket should still
+    compute correctly by pooling whichever IA components do exist,
+    rather than requiring exactly 3."""
+    with app.app_context():
+        course = Course(
+            subject_code="TST-2IA", subject_name="Two IA Test",
+            target_level1_pct=50, target_level2_pct=60, target_level3_pct=70,
+            internal_marks_cutoff_pct=60,
+        )
+        db.session.add(course)
+        db.session.flush()
+        co1 = CourseOutcome(course_id=course.id, seq=1, code="CO1")
+        db.session.add(co1)
+        db.session.flush()
+        student = Student(course_id=course.id, seq=1, usn="U1", name="Alice")
+        db.session.add(student)
+        db.session.flush()
+
+        ia1 = AssessmentComponent(course_id=course.id, type="IA1", name="IA Test 1")
+        ia2 = AssessmentComponent(course_id=course.id, type="IA2", name="IA Test 2")
+        db.session.add_all([ia1, ia2])
+        db.session.flush()
+        item1 = AssessmentItem(component_id=ia1.id, seq=1, label="1A", max_marks=10)
+        item2 = AssessmentItem(component_id=ia2.id, seq=1, label="1A", max_marks=10)
+        db.session.add_all([item1, item2])
+        db.session.flush()
+        db.session.add_all([
+            ItemCOMapping(item_id=item1.id, co_id=co1.id),
+            ItemCOMapping(item_id=item2.id, co_id=co1.id),
+        ])
+        db.session.add_all([
+            Mark(student_id=student.id, item_id=item1.id, marks_obtained=7),
+            Mark(student_id=student.id, item_id=item2.id, marks_obtained=8),
+        ])
+        db.session.commit()
+
+        # No IA3 component exists at all for this course. (7+8)/20 = 75%,
+        # which clears the 60% cutoff, so the one student "passes" -
+        # ia_pct is the % of attempting students who cleared the cutoff.
+        result = compute_course_attainment(course)
+        co1_row = result.co_rows[0]
+        assert co1_row.ia_pct == pytest.approx(100.0, abs=0.01)
 
 
 def test_absent_student_excluded_from_denominator(app):

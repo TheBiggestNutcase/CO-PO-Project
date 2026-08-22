@@ -19,26 +19,44 @@
         </p>
         {% else %}
         <p class="muted" style="margin-top:-6px;">Leave a cell blank for an absent student - it won't count against them (matches "if absent, don't enter anything").</p>
+        {% if ia_summary %}
+        <p class="muted" style="margin-top:-6px;">
+            "Total" only counts the higher-scoring of main questions 1/2, plus the higher-scoring of 3/4 (max 40) -
+            if a student answered an extra main question, the lower-scoring one of its pair is dropped automatically.
+        </p>
+        {% endif %}
         <form method="post">
             <div style="overflow-x:auto;">
             <table class="grid">
+                {% if ia_summary %}
+                <tr>
+                    <th></th><th></th>
+                    {% for item in items %}
+                    <th class="muted" style="font-weight:400;">Q{{ item.main_question if item.main_question is not none else '?' }}</th>
+                    {% endfor %}
+                    <th></th>
+                </tr>
+                {% endif %}
                 <tr>
                     <th>USN</th><th>Name</th>
                     {% for item in items %}
                     <th>{{ item.label }}<br><span class="muted" style="font-weight:400;">/{{ item.max_marks|int if item.max_marks == item.max_marks|int else item.max_marks }}</span></th>
                     {% endfor %}
+                    {% if ia_summary %}<th>Total<br><span class="muted" style="font-weight:400;">/40</span></th>{% endif %}
                 </tr>
                 {% for student in students %}
                 <tr>
                     <td class="label">{{ student.usn }}</td>
                     <td class="label" style="text-align:left;">{{ student.name }}</td>
                     {% for item in items %}
-                    <td>
+                    {% set dropped = ia_summary and item.main_question in ia_summary[student.id].dropped %}
+                    <td{% if dropped %} style="opacity:0.5;" title="Dropped: main question {{ item.main_question }} lost the either/or comparison for this student"{% endif %}>
                         <input type="number" step="0.5" min="0" max="{{ item.max_marks }}"
                                name="mark_{{ student.id }}_{{ item.id }}"
                                value="{{ marks_lookup.get((student.id, item.id), '') }}">
                     </td>
                     {% endfor %}
+                    {% if ia_summary %}<td class="num"><strong>{{ ia_summary[student.id].total|round(1) }}</strong></td>{% endif %}
                 </tr>
                 {% endfor %}
             </table>

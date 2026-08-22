@@ -73,7 +73,7 @@ def main():
         course2 = Course(
             subject_code="21CS33", subject_name="Analog and Digital Electronics",
             institution_name="AMC Engineering College", department="Electronics and Communication",
-            faculty_name=COORDINATOR_NAME, academic_year="2022-23", semester="III",
+            faculty_name=COORDINATOR_NAME, academic_year="2022-23", semester="3",
             target_level1_pct=50, target_level2_pct=60, target_level3_pct=70,
             internal_marks_cutoff_pct=60,
         )

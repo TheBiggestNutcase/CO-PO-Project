@@ -28,8 +28,15 @@ differently than the ones this was built against.
 import re
 from dataclasses import dataclass, field
 
-# "I Semester" / "III Semester" / ... - Roman numeral, so it's just I-VIII.
+# "I Semester" / "III Semester" / ... - VTU syllabi print this as a Roman
+# numeral, but the app stores/displays semesters as plain numbers (1, 2,
+# 3...) - see _ROMAN_TO_NUMBER below, where the conversion happens.
 SEMESTER_RE = re.compile(r"^(VIII|VII|VI|V|IV|III|II|I)\s+Semester\s*$", re.IGNORECASE)
+
+_ROMAN_TO_NUMBER = {
+    "I": "1", "II": "2", "III": "3", "IV": "4",
+    "V": "5", "VI": "6", "VII": "7", "VIII": "8",
+}
 
 # "Course Code   21CS33   CIE Marks   50" - single-spaced once pdfplumber
 # flattens the table's columns onto one line; the "CIE Marks" anchor is
@@ -117,7 +124,7 @@ def _extract_header(lines, result):
     for ln in lines:
         m = SEMESTER_RE.match(ln)
         if m:
-            result.semester = m.group(1).upper()
+            result.semester = _ROMAN_TO_NUMBER[m.group(1).upper()]
             break
 
 

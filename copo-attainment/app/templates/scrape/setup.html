@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Scrape VTU Results - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('marks.enter_component_marks', course_id=course.id, comp_type='EXTERNAL') }}">&larr; Back to External marks</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Scrape External results from VTU</h3>
+        <p class="muted" style="margin-top:-6px;">
+            Looks up each selected student's published result on VTU's results portal and pulls the
+            Internal/External/Total/Result for <strong>{{ course.subject_code }}</strong> - you'll get a
+            chance to review everything before it's saved. Nothing is written until you approve it on the
+            next screen.
+        </p>
+        <p class="muted">
+            Requires Google Chrome and a local Tesseract OCR install (used to read the CAPTCHA automatically -
+            <code>brew install tesseract</code> on a Mac). Each student takes a few seconds to look up, so a
+            full roster can take a few minutes - this runs in the background, you don't need to keep this
+            page open.
+        </p>
+
+        {% if not course.students %}
+        <p class="empty">Add students to the roster first.</p>
+        {% else %}
+        <form method="post" action="{{ url_for('scrape.start', course_id=course.id) }}">
+            <div class="field-row">
+                <div class="field">
+                    <label for="results_url">VTU results page URL</label>
+                    <input type="text" id="results_url" name="results_url" placeholder="https://results.vtu.ac.in/MJ26cbcs/index.php" style="width:100%;max-width:480px;">
+                    <p class="muted" style="margin-top:4px;">Find this on VTU's results announcement for the relevant exam cycle - it ends in <code>/index.php</code>.</p>
+                </div>
+            </div>
+
+            <div class="field-row">
+                <div class="field">
+                    <label><input type="checkbox" name="headless" checked style="width:auto;"> Run in the background (uncheck to watch the browser work, useful the first time)</label>
+                </div>
+            </div>
+
+            <div style="overflow-x:auto;">
+            <table class="grid">
+                <tr>
+                    <th style="width:36px;">
+                        <input type="checkbox" id="select-all" checked onclick="document.querySelectorAll('.student-check').forEach(c => c.checked = this.checked)">
+                    </th>
+                    <th>USN</th><th>Name</th>
+                </tr>
+                {% for student in course.students %}
+                <tr>
+                    <td><input type="checkbox" class="student-check" name="student_id" value="{{ student.id }}" checked></td>
+                    <td class="label">{{ student.usn }}</td>
+                    <td class="label" style="text-align:left;">{{ student.name }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            </div>
+
+            <div class="btn-row">
+                <button type="submit">Start scraping &rarr;</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+{% endblock %}

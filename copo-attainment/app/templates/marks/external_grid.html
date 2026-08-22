@@ -11,6 +11,9 @@
         <p class="empty">Add students to the roster first.</p>
         {% else %}
         <p class="muted" style="margin-top:-6px;">Internal total is informational only (not used in the calculation). External marks and Result (P/F) drive the External attainment %.</p>
+        <div class="btn-row" style="margin-top:0;">
+            <a class="btn secondary" href="{{ url_for('scrape.setup', course_id=course.id) }}">Scrape from VTU instead &rarr;</a>
+        </div>
         <form method="post">
             <div style="overflow-x:auto;">
             <table class="grid">

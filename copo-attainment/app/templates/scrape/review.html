@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Review scraped results - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('scrape.setup', course_id=course.id) }}">&larr; Back</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Review scraped results</h3>
+        {% if job.status == 'aborted' %}
+        <p class="flash error">Scraping stopped early: {{ job.error or (job.result.abort_reason if job.result else 'unknown reason') }}. Results below are for whoever was processed before that happened.</p>
+        {% elif job.status == 'error' %}
+        <p class="flash error">Scraping failed: {{ job.error }}</p>
+        {% endif %}
+
+        {% if not rows %}
+        <p class="empty">No results were collected.</p>
+        {% else %}
+        <p class="muted" style="margin-top:-6px;">
+            Nothing has been saved yet. Uncheck anything you don't want written, adjust any values that
+            look wrong, then save - this only touches External (SEE) results for {{ course.subject_code }}.
+        </p>
+        <form method="post" action="{{ url_for('scrape.save', course_id=course.id, job_id=job_id) }}">
+            <div style="overflow-x:auto;">
+            <table class="grid">
+                <tr>
+                    <th style="width:36px;">
+                        <input type="checkbox" id="select-all" checked onclick="document.querySelectorAll('.row-check').forEach(c => { if (!c.disabled) c.checked = this.checked; })">
+                    </th>
+                    <th>USN</th><th>Name</th><th>Status</th>
+                    <th>Internal</th><th>External</th><th>Total (VTU)</th><th>Result</th>
+                    <th>Currently saved</th>
+                </tr>
+                {% for row in rows %}
+                <tr>
+                    <td>
+                        {% if row.status == 'ok' and row.subject and row.student %}
+                        <input type="checkbox" class="row-check" name="include_{{ row.student.id }}" checked>
+                        {% else %}
+                        <input type="checkbox" class="row-check" disabled>
+                        {% endif %}
+                    </td>
+                    <td class="label">{{ row.usn }}</td>
+                    <td class="label" style="text-align:left;">{{ row.student.name if row.student else (row.confirmed_name or '-') }}</td>
+                    <td>
+                        {% if row.status == 'ok' and row.subject %}
+                        <span class="muted">matched</span>
+                        {% elif row.status == 'ok' %}
+                        <span class="muted">no {{ course.subject_code }} row found{{ ' (saw: ' + row.seen_codes|join(', ') + ')' if row.seen_codes else '' }}</span>
+                        {% elif row.status == 'invalid' %}
+                        <span class="muted">USN invalid / no result: {{ row.error }}</span>
+                        {% else %}
+                        <span class="muted">error: {{ row.error }}</span>
+                        {% endif %}
+                    </td>
+                    {% if row.status == 'ok' and row.subject and row.student %}
+                    <td><input type="number" step="0.5" min="0" name="internal_{{ row.student.id }}" value="{{ row.subject.internal_marks if row.subject.internal_marks is not none else '' }}"></td>
+                    <td><input type="number" step="0.5" min="0" name="external_{{ row.student.id }}" value="{{ row.subject.external_marks if row.subject.external_marks is not none else '' }}"></td>
+                    <td class="muted">{{ row.subject.total if row.subject.total is not none else '-' }}</td>
+                    <td><input type="text" maxlength="5" style="width:56px;" name="result_{{ row.student.id }}" value="{{ row.subject.result or '' }}"></td>
+                    {% else %}
+                    <td class="muted">-</td><td class="muted">-</td><td class="muted">-</td><td class="muted">-</td>
+                    {% endif %}
+                    <td class="muted">
+                        {% if row.existing %}
+                        {{ row.existing.internal_total if row.existing.internal_total is not none else '-' }} /
+                        {{ row.existing.external_marks if row.existing.external_marks is not none else '-' }} /
+                        {{ row.existing.result or '-' }}
+                        {% else %}
+                        (nothing saved yet)
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+            </div>
+            <div class="btn-row">
+                <button type="submit">Save selected results</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+{% endblock %}

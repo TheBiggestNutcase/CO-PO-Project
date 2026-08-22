@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Scraping... - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('scrape.setup', course_id=course.id) }}">&larr; Back</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Scraping VTU results&hellip;</h3>
+        <p class="muted" id="status-line" style="margin-top:-6px;">Starting up&hellip;</p>
+
+        <div style="background:var(--bg); border-radius:6px; height:10px; overflow:hidden; margin:12px 0;">
+            <div id="progress-bar" style="background:var(--accent, #2f4f4f); height:100%; width:0%; transition:width 0.3s;"></div>
+        </div>
+
+        <div style="background:var(--bg); border-radius:6px; padding:10px; max-height:280px; overflow-y:auto; font-family:monospace; font-size:12px;" id="log-box">
+        </div>
+
+        <p class="muted" style="margin-top:12px;">This page updates itself - no need to refresh. You can also navigate away and come back; the scrape keeps running in the background.</p>
+    </div>
+
+    <script>
+        const statusUrl = {{ url_for('scrape.progress_json', course_id=course.id, job_id=job.job_id) | tojson }};
+        const reviewUrl = {{ url_for('scrape.review', course_id=course.id, job_id=job.job_id) | tojson }};
+
+        function poll() {
+            fetch(statusUrl).then(r => r.json()).then(data => {
+                const pct = data.total ? Math.round(data.processed / data.total * 100) : 0;
+                document.getElementById('progress-bar').style.width = pct + '%';
+                document.getElementById('status-line').textContent =
+                    `${data.processed} of ${data.total} student(s) processed` + (data.status !== 'running' ? ` - ${data.status}` : '');
+                document.getElementById('log-box').innerHTML = data.log.map(line => line.replace(/</g, '&lt;')).join('<br>');
+                document.getElementById('log-box').scrollTop = document.getElementById('log-box').scrollHeight;
+
+                if (data.status === 'running') {
+                    setTimeout(poll, 1500);
+                } else {
+                    window.location.href = reviewUrl;
+                }
+            }).catch(() => setTimeout(poll, 3000));
+        }
+        poll();
+    </script>
+{% endblock %}

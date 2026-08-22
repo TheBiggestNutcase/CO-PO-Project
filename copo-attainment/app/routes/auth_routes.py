@@ -13,16 +13,23 @@ ensure_admin_account() in app/migrations.py, called from
 app/__init__.py) - there's no web form that creates one. The Admin logs
 in like anyone else, then manages Coordinator and Teacher accounts from
 /admin/users below: adding them, removing them, resetting passwords.
-A Coordinator additionally manages Teacher accounts (and their course
-assignments) from /teachers, same as before Admin existed - the two
-overlap on "can create a Teacher account" by design, since Admin handles
-account existence and Coordinator handles which courses a teacher sees.
+
+A Coordinator can create/remove Teacher accounts from /teachers below,
+but - deliberately, as of the multi-course/multi-teacher work - can no
+longer reset a teacher's password themselves (only the Admin can, from
+/admin/users). Which course(s) a Teacher (or a Coordinator moonlighting
+as a teacher elsewhere - see Course.faculty_display) is assigned to is
+no longer managed from this page either: that's done per-course, from
+setup_routes.py's manage_course_teachers ("Teachers" tab on a course),
+since a subject only ever has the one Coordinator and picking teachers
+*for that subject* reads far more naturally than picking subjects for a
+teacher out of every course in the system.
 """
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_user, logout_user, login_required, current_user
 
 from app.extensions import db
-from app.models import User, Course, CourseTeacher, ROLE_COORDINATOR, ROLE_TEACHER
+from app.models import User, ROLE_COORDINATOR, ROLE_TEACHER
 from app.auth import coordinator_required, admin_required
 
 # Roles the Admin's own /admin/users page is allowed to create/manage -
@@ -76,8 +83,11 @@ def logout():
 @auth_bp.route("/teachers", methods=["GET", "POST"])
 @coordinator_required
 def manage_teachers():
-    courses = Course.query.order_by(Course.subject_code).all()
-
+    """Account directory for Teacher accounts: create one, or remove one.
+    Deliberately does NOT do course assignment or password resets -
+    course assignment is per-course now (see manage_course_teachers in
+    setup_routes.py, linked from each course's "Teachers" tab), and only
+    the Admin can reset a Teacher's password (see manage_users below)."""
     if request.method == "POST":
         action = request.form.get("action")
 
@@ -93,37 +103,12 @@ def manage_teachers():
                 teacher.set_password(password)
                 db.session.add(teacher)
                 db.session.commit()
-                flash(f"Added a teacher account for {teacher.display_name}. Assign them to a course below.", "success")
-
-        elif action == "update_assignments":
-            teacher = db.session.get(User, int(request.form.get("teacher_id", 0)))
-            if teacher and teacher.role == ROLE_TEACHER:
-                selected_ids = {int(cid) for cid in request.form.getlist("course_ids")}
-                existing_by_course = {a.course_id: a for a in teacher.course_assignments}
-                for course in courses:
-                    if course.id in selected_ids and course.id not in existing_by_course:
-                        db.session.add(CourseTeacher(course_id=course.id, teacher_id=teacher.id))
-                    elif course.id not in selected_ids and course.id in existing_by_course:
-                        db.session.delete(existing_by_course[course.id])
-                db.session.commit()
-                flash(f"Updated {teacher.display_name}'s course assignments.", "success")
-
-        elif action == "reset_password":
-            teacher = db.session.get(User, int(request.form.get("teacher_id", 0)))
-            new_password = request.form.get("new_password", "")
-            if teacher and teacher.role == ROLE_TEACHER:
-                teacher.set_password(new_password)
-                db.session.commit()
-                flash(f"Password reset for {teacher.display_name}.", "success")
+                flash(f"Added a teacher account for {teacher.display_name}. Assign them to a course from that course's Teachers tab.", "success")
 
         return redirect(url_for("auth.manage_teachers"))
 
     teachers = User.query.filter_by(role=ROLE_TEACHER).order_by(User.display_name).all()
-    assigned_course_ids = {t.id: {a.course_id for a in t.course_assignments} for t in teachers}
-    return render_template(
-        "auth/manage_teachers.html",
-        teachers=teachers, courses=courses, assigned_course_ids=assigned_course_ids,
-    )
+    return render_template("auth/manage_teachers.html", teachers=teachers)
 
 
 @auth_bp.route("/teachers/<int:teacher_id>/delete", methods=["POST"])

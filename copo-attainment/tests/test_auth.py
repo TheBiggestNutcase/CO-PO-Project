@@ -190,6 +190,7 @@ def test_teacher_gets_403_on_coordinator_only_routes(client):
         f"/courses/{course.id}/program-outcomes",
         f"/courses/{course.id}/mapping",
         f"/courses/{course.id}/structure/",
+        f"/courses/{course.id}/teachers",
         f"/courses/{course.id}/marks/roster",
         "/teachers",
     ):
@@ -266,9 +267,8 @@ def test_teacher_list_courses_only_shows_assigned(client):
 
 # ------------------------------------------------------- coordinator manages teachers
 
-def test_coordinator_can_add_teacher_and_assign_course(client):
+def test_coordinator_can_add_teacher_account(client):
     _make_coordinator()
-    course = _make_course()
     _login(client, "Test Coordinator", "testpass123")
 
     resp = client.post("/teachers", data={
@@ -278,13 +278,6 @@ def test_coordinator_can_add_teacher_and_assign_course(client):
     teacher = User.query.filter_by(display_name="New Teacher").first()
     assert teacher is not None
     assert teacher.role == ROLE_TEACHER
-
-    resp = client.post("/teachers", data={
-        "action": "update_assignments", "teacher_id": str(teacher.id),
-        "course_ids": [str(course.id)],
-    }, follow_redirects=True)
-    assert resp.status_code == 200
-    assert CourseTeacher.query.filter_by(course_id=course.id, teacher_id=teacher.id).first() is not None
 
 
 def test_coordinator_cannot_add_teacher_with_duplicate_name(client):
@@ -298,6 +291,134 @@ def test_coordinator_cannot_add_teacher_with_duplicate_name(client):
     assert resp.status_code == 200
     assert b"already taken" in resp.data
     assert User.query.filter_by(role=ROLE_TEACHER).count() == 1
+
+
+def test_coordinator_cannot_reset_a_teachers_password(client):
+    """Only the Admin can reset a Teacher's password now (see
+    test_admin_can_reset_a_coordinator_or_teacher_password below) - the
+    Coordinator-facing /teachers page no longer exposes this action at
+    all, so posting it is simply a no-op, not an error."""
+    _make_coordinator()
+    teacher = _make_teacher()
+    original_hash = teacher.password_hash
+    _login(client, "Test Coordinator", "testpass123")
+
+    resp = client.post("/teachers", data={
+        "action": "reset_password", "teacher_id": str(teacher.id), "new_password": "should-not-stick",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert db.session.get(User, teacher.id).password_hash == original_hash
+    assert not db.session.get(User, teacher.id).check_password("should-not-stick")
+
+
+# --------------------------------------------------- per-course teacher assignment
+
+def test_coordinator_assigns_a_teacher_to_a_specific_course(client):
+    """Course-scoped assignment (the Teachers tab on a course) replaces
+    the old per-teacher course-picker - a coordinator just ticks which
+    teacher(s) are assigned to *this* subject."""
+    _make_coordinator()
+    course = _make_course()
+    teacher = _make_teacher()
+    _login(client, "Test Coordinator", "testpass123")
+
+    resp = client.get(f"/courses/{course.id}/teachers")
+    assert resp.status_code == 200
+    assert teacher.display_name.encode() in resp.data
+
+    resp = client.post(f"/courses/{course.id}/teachers", data={
+        "teacher_ids": [str(teacher.id)],
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert CourseTeacher.query.filter_by(course_id=course.id, teacher_id=teacher.id).first() is not None
+
+    # Unticking removes the assignment again.
+    resp = client.post(f"/courses/{course.id}/teachers", data={}, follow_redirects=True)
+    assert resp.status_code == 200
+    assert CourseTeacher.query.filter_by(course_id=course.id, teacher_id=teacher.id).first() is None
+
+
+def test_course_teachers_page_excludes_the_courses_own_coordinator(client):
+    """The course's own coordinator is already credited automatically
+    (Course.faculty_display) - they shouldn't also show up as a
+    selectable "teacher" checkbox for their own course."""
+    coordinator = _make_coordinator()
+    course = _make_course()
+    course.coordinator_id = coordinator.id
+    db.session.commit()
+    _login(client, "Test Coordinator", "testpass123")
+
+    resp = client.get(f"/courses/{course.id}/teachers")
+    assert resp.status_code == 200
+    assert b"No other Teacher or Coordinator accounts exist yet" in resp.data
+
+
+def test_a_coordinator_can_be_assigned_as_teacher_on_another_course(client):
+    """A Coordinator running their own course(s) can also be picked up as
+    a Teacher on someone else's course (they take a class there too)."""
+    _make_coordinator(name="Owning Coordinator", password="ownerpass1")
+    moonlighting = _make_coordinator(name="Moonlighting Coordinator", password="otherpass1")
+    course = _make_course()
+    course.coordinator_id = User.query.filter_by(display_name="Owning Coordinator").first().id
+    db.session.commit()
+
+    _login(client, "Owning Coordinator", "ownerpass1")
+    resp = client.get(f"/courses/{course.id}/teachers")
+    assert resp.status_code == 200
+    assert b"Moonlighting Coordinator" in resp.data
+    assert b"Coordinator</span>" in resp.data  # the role badge shows up next to their name
+
+    resp = client.post(f"/courses/{course.id}/teachers", data={
+        "teacher_ids": [str(moonlighting.id)],
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert CourseTeacher.query.filter_by(course_id=course.id, teacher_id=moonlighting.id).first() is not None
+    assert moonlighting.display_name in db.session.get(Course, course.id).faculty_display
+
+
+# ------------------------------------------------- comma-separated teachers at course creation
+
+def test_new_course_form_adds_teachers_from_comma_separated_names(client):
+    """Point 4: teachers (like sections) can be added as a comma-
+    separated list right on the course creation form - existing accounts
+    get linked, new names get a fresh Teacher account."""
+    _make_coordinator()
+    _make_teacher(name="Existing Teacher")
+    _login(client, "Test Coordinator", "testpass123")
+
+    resp = client.post("/courses/new", data={
+        "subject_code": "T-MULTI", "subject_name": "Multi Teacher Subject",
+        "section": "A, B", "teachers": "Existing Teacher, Brand New Teacher",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+
+    course = Course.query.filter_by(subject_code="T-MULTI").first()
+    assert course is not None
+    assert course.sections_list == ["A", "B"]
+
+    assigned_names = {a.teacher.display_name for a in course.teacher_assignments}
+    assert assigned_names == {"Existing Teacher", "Brand New Teacher"}
+
+    new_teacher = User.query.filter_by(display_name="Brand New Teacher").first()
+    assert new_teacher is not None
+    assert new_teacher.role == ROLE_TEACHER
+
+
+def test_adding_teachers_at_course_creation_never_duplicates_the_coordinator(client):
+    """Typing the coordinator's own name in the "teachers to add" field
+    should be a harmless no-op, not a duplicate/self CourseTeacher row -
+    they're already credited automatically."""
+    coordinator = _make_coordinator()
+    _login(client, "Test Coordinator", "testpass123")
+
+    client.post("/courses/new", data={
+        "subject_code": "T-SELF", "subject_name": "Self Reference Subject",
+        "teachers": "Test Coordinator",
+    }, follow_redirects=True)
+
+    course = Course.query.filter_by(subject_code="T-SELF").first()
+    assert course is not None
+    assert CourseTeacher.query.filter_by(course_id=course.id, teacher_id=coordinator.id).first() is None
 
 
 # --------------------------------------------------------------- admin
@@ -327,6 +448,7 @@ def test_admin_is_blocked_from_course_routes(client):
     for path in (
         "/courses/new",
         f"/courses/{course.id}",
+        f"/courses/{course.id}/teachers",
         f"/courses/{course.id}/marks/",
         f"/courses/{course.id}/results/",
         "/teachers",

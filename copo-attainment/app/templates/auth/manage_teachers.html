@@ -4,8 +4,8 @@
     <a class="back-link" href="{{ url_for('setup.list_courses') }}">&larr; Back to courses</a>
     <h1>Teachers</h1>
     <p class="subtitle">
-        Teacher accounts can only enter marks and view results for the specific course(s) you assign them to
-        below - they can't see or change COs, POs, mapping, targets, structure, or the roster.
+        Every Teacher account, in one place. To pick which course(s) a teacher is assigned to (or reset their
+        password), open that course and use its "Teachers" tab - or, if it's about a password, ask the Admin.
     </p>
 
     <div class="card">
@@ -28,55 +28,24 @@
         </form>
     </div>
 
-    {% if not teachers %}
     <div class="card">
+        <h3>All teacher accounts ({{ teachers|length }})</h3>
+        {% if not teachers %}
         <p class="empty">No teacher accounts yet.</p>
+        {% else %}
+        <table class="plain">
+            <tr><th>Name</th><th></th></tr>
+            {% for teacher in teachers %}
+            <tr>
+                <td>{{ teacher.display_name }}</td>
+                <td>
+                    <form method="post" onsubmit="return confirm('Remove {{ teacher.display_name }}\'s account? They will no longer be able to log in.');">
+                        <button type="submit" class="danger" formaction="{{ url_for('auth.delete_teacher', teacher_id=teacher.id) }}">Remove account</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
     </div>
-    {% endif %}
-
-    {% for teacher in teachers %}
-    <div class="card">
-        <h3>{{ teacher.display_name }}</h3>
-
-        <form method="post">
-            <input type="hidden" name="action" value="update_assignments">
-            <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
-            <div class="field">
-                <label>Assigned courses</label>
-                {% if courses %}
-                <div style="display:flex; flex-direction:column; gap:6px;">
-                    {% for course in courses %}
-                    <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
-                        <input type="checkbox" name="course_ids" value="{{ course.id }}"
-                               style="width:auto;" {{ 'checked' if course.id in assigned_course_ids.get(teacher.id, []) }}>
-                        {{ course.subject_code }} - {{ course.subject_name }}{% if course.section %} (Sec {{ course.section }}){% endif %}
-                    </label>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="empty">No courses exist yet - create one first, then come back to assign it.</p>
-                {% endif %}
-            </div>
-            <button type="submit">Update assignments</button>
-        </form>
-
-        <div class="field-row" style="margin-top:16px;">
-            <form method="post" style="flex:1;">
-                <input type="hidden" name="action" value="reset_password">
-                <input type="hidden" name="teacher_id" value="{{ teacher.id }}">
-                <div class="field-row">
-                    <div class="field">
-                        <label for="new_password_{{ teacher.id }}">Reset password</label>
-                        <input type="password" id="new_password_{{ teacher.id }}" name="new_password" placeholder="New password">
-                    </div>
-                </div>
-                <button type="submit" class="secondary">Reset password</button>
-            </form>
-            <form method="post" onsubmit="return confirm('Remove {{ teacher.display_name }}\'s account? They will no longer be able to log in.');">
-                <input type="hidden" name="action" value="delete">
-                <button type="submit" class="danger" formaction="{{ url_for('auth.delete_teacher', teacher_id=teacher.id) }}">Remove account</button>
-            </form>
-        </div>
-    </div>
-    {% endfor %}
 {% endblock %}

@@ -33,8 +33,9 @@
         </div>
         <div class="field-row">
             <div class="field">
-                <label for="faculty_name">Faculty handling</label>
+                <label for="faculty_name">Faculty handling (fallback)</label>
                 <input type="text" id="faculty_name" name="faculty_name" value="{{ course.faculty_name if course else '' }}">
+                <span class="hint">Only shown on reports if no Teacher accounts are assigned to this course yet - once you add teachers (above, or from this course's Teachers tab), the report lists them (and you, the Coordinator) automatically instead.</span>
             </div>
             <div class="field">
                 <label for="academic_year">Academic year (e.g. 2025-26)</label>
@@ -42,12 +43,24 @@
             </div>
             <div class="field">
                 <label for="semester">Semester</label>
-                <input type="text" id="semester" name="semester" value="{{ course.semester if course else '' }}">
+                <input type="text" id="semester" name="semester" value="{{ course.semester if course else '' }}" placeholder="5">
+                <span class="hint">Written as a number (5, not V).</span>
             </div>
             <div class="field">
-                <label for="section">Section</label>
+                <label for="section">Section(s)</label>
                 <input type="text" id="section" name="section" value="{{ course.section if course else '' }}" placeholder="A">
-                <span class="hint">Which class section this course covers, if your subject is taught to more than one (e.g. "A"). Leave blank if not applicable.</span>
+                <span class="hint">Which class section(s) this course covers. One section: just "A". More than one sharing this same course setup: comma-separate them, e.g. "A, B, C". Leave blank if not applicable.</span>
+            </div>
+        </div>
+        <div class="field-row">
+            <div class="field">
+                <label for="teachers">Teachers to add</label>
+                <input type="text" id="teachers" name="teachers" placeholder="Priya Rao, Karan Shetty">
+                <span class="hint">
+                    Comma-separate multiple names. A name matching an existing Teacher or Coordinator account gets
+                    linked to it; a new name gets a brand-new Teacher account (blank password, resettable later by
+                    the Admin). This only adds people{% if course %} - to remove someone, use this course's Teachers tab{% endif %}.
+                </span>
             </div>
         </div>
 

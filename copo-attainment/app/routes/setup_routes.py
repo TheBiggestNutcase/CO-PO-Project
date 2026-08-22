@@ -8,7 +8,10 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import current_user
 
 from app.extensions import db
-from app.models import Course, CourseOutcome, ProgramOutcome, COPOMapping
+from app.models import (
+    Course, CourseOutcome, ProgramOutcome, COPOMapping,
+    User, CourseTeacher, ROLE_COORDINATOR, ROLE_TEACHER,
+)
 from app.constants import STANDARD_PO_DESCRIPTIONS, STANDARD_POS
 from app.auth import coordinator_required
 
@@ -45,8 +48,11 @@ def list_courses():
 def new_course():
     if request.method == "POST":
         course = Course()
+        course.coordinator_id = current_user.id
         _apply_course_form(course, request.form)
         db.session.add(course)
+        db.session.flush()  # course.id is needed below, before the outer commit
+        _add_teachers_from_names(course, request.form.get("teachers", ""))
         db.session.commit()
         flash(f"Created {course.subject_code}. Next, add its Course Outcomes.", "success")
         return redirect(url_for("setup.course_detail", course_id=course.id))
@@ -66,6 +72,7 @@ def edit_course(course_id):
     course = _get_course_or_404(course_id)
     if request.method == "POST":
         _apply_course_form(course, request.form)
+        _add_teachers_from_names(course, request.form.get("teachers", ""))
         db.session.commit()
         flash("Course details saved.", "success")
         return redirect(url_for("setup.course_detail", course_id=course.id))
@@ -85,6 +92,45 @@ def _apply_course_form(course, form):
     course.target_level2_pct = float(form.get("target_level2_pct") or 60)
     course.target_level3_pct = float(form.get("target_level3_pct") or 70)
     course.internal_marks_cutoff_pct = float(form.get("internal_marks_cutoff_pct") or 60)
+
+
+def _add_teachers_from_names(course, raw_names):
+    """Parses the course form's optional "Teachers to add" field - a
+    comma-separated list of names, same convention as Course.section -
+    and assigns each one as a CourseTeacher on `course`. Additive only:
+    typing names here never *removes* anyone's assignment (that's what
+    the course's own Teachers tab, manage_course_teachers below, is for)
+    - so re-saving the course details for an unrelated reason can't
+    accidentally drop a teacher who just isn't mentioned in this field.
+
+    A name that matches an existing Teacher *or Coordinator* account
+    (case-insensitive, via User.find_by_name) gets linked to that
+    account - a Coordinator can also be a Teacher on someone else's
+    course (see Course.faculty_display). A name that matches nothing
+    gets a brand new Teacher account with a blank password, resettable
+    later by the Admin from /admin/users. The course's own coordinator
+    is skipped silently if typed here, since they're already credited
+    automatically without needing a CourseTeacher row.
+
+    Requires `course.id` to already be set - callers must db.session.add
+    + flush a brand-new course before calling this (see new_course)."""
+    names = [n.strip() for n in (raw_names or "").split(",") if n.strip()]
+    if not names:
+        return
+    existing_teacher_ids = {a.teacher_id for a in course.teacher_assignments}
+    for name in names:
+        user = User.find_by_name(name)
+        if user is None:
+            user = User(username=name, display_name=name, role=ROLE_TEACHER)
+            user.set_password("")
+            db.session.add(user)
+            db.session.flush()
+        elif user.role not in (ROLE_TEACHER, ROLE_COORDINATOR):
+            continue  # e.g. happens to match the one Admin account by name
+        if user.id == course.coordinator_id or user.id in existing_teacher_ids:
+            continue
+        db.session.add(CourseTeacher(course_id=course.id, teacher_id=user.id))
+        existing_teacher_ids.add(user.id)
 
 
 # ------------------------------------------------------------- outcomes
@@ -206,3 +252,44 @@ def manage_mapping(course_id):
             mapping_lookup[(co.id, m.po_id)] = m.correlation_level
 
     return render_template("courses/mapping.html", course=course, mapping_lookup=mapping_lookup)
+
+
+# --------------------------------------------------------- teachers
+
+@setup_bp.route("/<int:course_id>/teachers", methods=["GET", "POST"])
+@coordinator_required
+def manage_course_teachers(course_id):
+    """Per-course teacher assignment: since a subject only ever has one
+    Unit Coordinator (course.coordinator_id), the natural question here
+    is "which teachers are assigned to *this* subject" - a single
+    checklist - rather than the old page's "which subjects is *this*
+    teacher assigned to," repeated once per teacher across every course
+    in the system. Selectable people are every Teacher or Coordinator
+    account except this course's own coordinator (already credited
+    automatically - see Course.faculty_display) - a Coordinator can be
+    picked here too, covering a Coordinator who also teaches a class on
+    someone else's course."""
+    course = _get_course_or_404(course_id)
+    eligible = (
+        User.query.filter(User.role.in_((ROLE_TEACHER, ROLE_COORDINATOR)))
+        .order_by(User.display_name)
+        .all()
+    )
+    eligible = [u for u in eligible if u.id != course.coordinator_id]
+
+    if request.method == "POST":
+        selected_ids = {int(uid) for uid in request.form.getlist("teacher_ids")}
+        existing_by_user = {a.teacher_id: a for a in course.teacher_assignments}
+        for user in eligible:
+            if user.id in selected_ids and user.id not in existing_by_user:
+                db.session.add(CourseTeacher(course_id=course.id, teacher_id=user.id))
+            elif user.id not in selected_ids and user.id in existing_by_user:
+                db.session.delete(existing_by_user[user.id])
+        db.session.commit()
+        flash("Updated the teachers assigned to this course.", "success")
+        return redirect(url_for("setup.manage_course_teachers", course_id=course.id))
+
+    assigned_ids = {a.teacher_id for a in course.teacher_assignments}
+    return render_template(
+        "courses/teachers.html", course=course, eligible=eligible, assigned_ids=assigned_ids,
+    )

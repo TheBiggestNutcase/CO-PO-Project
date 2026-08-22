@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Teachers - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('setup.course_detail', course_id=course.id) }}">&larr; Back to course overview</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Teachers for this course</h3>
+        <p class="muted" style="margin-top:-6px;">
+            {{ course.coordinator.display_name if course.coordinator else 'The unit coordinator' }} is already
+            credited automatically as this course's Unit Coordinator. Tick anyone else who takes at least one
+            class here - a Teacher account, or a Coordinator who's moonlighting as a teacher on this subject -
+            and they'll be credited on reports and able to enter marks/view results for this course.
+        </p>
+        {% if eligible %}
+        <form method="post">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+                {% for user in eligible %}
+                <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" name="teacher_ids" value="{{ user.id }}" style="width:auto;"
+                           {{ 'checked' if user.id in assigned_ids }}>
+                    {{ user.display_name }}{% if user.is_coordinator %} <span class="tag level-2">Coordinator</span>{% endif %}
+                </label>
+                {% endfor %}
+            </div>
+            <div class="btn-row">
+                <button type="submit">Save</button>
+            </div>
+        </form>
+        {% else %}
+        <p class="empty">No other Teacher or Coordinator accounts exist yet - <a href="{{ url_for('auth.manage_teachers') }}">add a teacher account</a> first.</p>
+        {% endif %}
+    </div>
+{% endblock %}

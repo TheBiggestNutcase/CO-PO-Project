@@ -10,6 +10,8 @@
        class="{{ 'active' if request.endpoint == 'setup.manage_mapping' else '' }}">CO-PO Mapping</a>
     <a href="{{ url_for('structure.list_components', course_id=course.id) }}"
        class="{{ 'active' if request.endpoint and request.endpoint.startswith('structure.') else '' }}">Assessment Structure</a>
+    <a href="{{ url_for('setup.manage_course_teachers', course_id=course.id) }}"
+       class="{{ 'active' if request.endpoint == 'setup.manage_course_teachers' else '' }}">Teachers</a>
     {% endif %}
     <a href="{{ url_for('marks.list_components', course_id=course.id) }}"
        class="{{ 'active' if request.endpoint and request.endpoint.startswith('marks.') else '' }}">Marks Entry</a>

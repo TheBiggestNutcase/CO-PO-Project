@@ -5,12 +5,81 @@
     <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
     {% include "courses/_nav.html" %}
 
+    {% if is_exit_survey and not component.items %}
+    <div class="card">
+        <h3>No exit-survey questions yet</h3>
+        <p class="muted" style="margin-top:-6px;">
+            Most people collect exit-survey responses with a Google Form (one question per row below,
+            students rate each A-E), then import the form's response export here once it's set up.
+            If you don't have a form yet, download a ready-made list of suggested questions - matched to
+            this course's Course Outcomes, if any are defined - to paste straight into a new Google Form.
+        </p>
+        <a class="btn secondary" href="{{ url_for('structure.exit_survey_template', course_id=course.id) }}">Download question template (.xlsx)</a>
+    </div>
+    {% endif %}
+
     <div class="card">
         <h3>{{ label }}</h3>
         {% if not course.outcomes %}
         <p class="empty">Add Course Outcomes first before defining items.</p>
         {% else %}
 
+        {% if is_ia %}
+        {% for n in main_questions %}
+        {% set group_items = groups[n] %}
+        {% set group_total = group_items|sum(attribute='max_marks') %}
+        <h4 style="margin-bottom:4px;">
+            Main question {{ n }}
+            <span class="muted" style="font-weight:normal;">({{ group_total|round(1) }} / {{ main_question_cap|round(0, 'floor')|int }} marks allotted)</span>
+        </h4>
+        {% if group_items %}
+        <table class="plain" style="margin-bottom:14px;">
+            <tr><th>#</th><th>Sub-part</th><th>Max marks</th><th>Mapped CO(s)</th><th></th></tr>
+            {% for item in group_items %}
+            <tr>
+                <td>{{ item.seq }}</td>
+                <td><strong>{{ item.label }}</strong></td>
+                <td class="num">{{ item.max_marks }}</td>
+                <td>{{ item.co_links|map(attribute='co')|map(attribute='code')|join(', ') or '-' }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('structure.delete_item', course_id=course.id, comp_type=comp_type, item_id=item.id) }}"
+                          onsubmit="return confirm('Remove item {{ item.label }}? This also removes any marks/responses already entered for it.');">
+                        <button type="submit" class="danger">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p class="empty" style="margin-bottom:14px;">No sub-parts added to main question {{ n }} yet.</p>
+        {% endif %}
+        {% endfor %}
+        {% if groups.ungrouped %}
+        <h4 style="margin-bottom:4px;">Not assigned to a main question <span class="muted" style="font-weight:normal;">(added before this grouping existed)</span></h4>
+        <table class="plain" style="margin-bottom:14px;">
+            <tr><th>#</th><th>Label</th><th>Max marks</th><th>Mapped CO(s)</th><th></th></tr>
+            {% for item in groups.ungrouped %}
+            <tr>
+                <td>{{ item.seq }}</td>
+                <td><strong>{{ item.label }}</strong></td>
+                <td class="num">{{ item.max_marks }}</td>
+                <td>{{ item.co_links|map(attribute='co')|map(attribute='code')|join(', ') or '-' }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('structure.delete_item', course_id=course.id, comp_type=comp_type, item_id=item.id) }}"
+                          onsubmit="return confirm('Remove item {{ item.label }}? This also removes any marks/responses already entered for it.');">
+                        <button type="submit" class="danger">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        <p class="muted" style="margin-top:-6px;">
+            A student's final IA score only counts the higher-scoring of main questions 1/2, plus the
+            higher-scoring of 3/4 (max 20 each, 40 total) - so the paper should be set up as "either
+            answer Q1 or Q2, either answer Q3 or Q4."
+        </p>
+        {% else %}
         {% if component.items %}
         <table class="plain">
             <tr>
@@ -36,14 +105,26 @@
         {% else %}
         <p class="empty">No items yet.</p>
         {% endif %}
+        {% endif %}
 
-        <h3>Add an item</h3>
+        <h3>Add {{ 'a sub-part' if is_ia else 'an item' }}</h3>
         <form method="post">
             <div class="field-row">
                 <div class="field">
-                    <label for="label">Label</label>
-                    <input type="text" id="label" name="label" required placeholder="{{ '1A' if not is_exit_survey else 'Q1' }}">
+                    <label for="label">{{ 'Sub-part label' if is_ia else 'Label' }}</label>
+                    <input type="text" id="label" name="label" required placeholder="{{ '1a' if is_ia else ('Q1' if is_exit_survey else '1A') }}">
                 </div>
+                {% if is_ia %}
+                <div class="field">
+                    <label for="main_question">Main question</label>
+                    <select id="main_question" name="main_question" required>
+                        <option value="">Choose...</option>
+                        {% for n in main_questions %}
+                        <option value="{{ n }}">{{ n }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
                 {% if not is_exit_survey %}
                 <div class="field">
                     <label for="max_marks">Max marks</label>
@@ -59,7 +140,7 @@
                 </label>
                 {% endfor %}
             </div>
-            <button type="submit">+ Add item</button>
+            <button type="submit">+ Add {{ 'sub-part' if is_ia else 'item' }}</button>
         </form>
         {% endif %}
     </div>

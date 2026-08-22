@@ -33,6 +33,9 @@ from app.constants import STANDARD_PO_DESCRIPTIONS
 COLUMNS_TO_ENSURE = [
     ("program_outcome", "description", "TEXT", None),
     ("course", "section", "TEXT", "''"),
+    ("course", "coordinator_id", "INTEGER", None),
+    ("student", "section", "TEXT", "''"),
+    ("assessment_item", "main_question", "INTEGER", None),
 ]
 
 

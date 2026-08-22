@@ -45,6 +45,7 @@ def list_courses():
 def new_course():
     if request.method == "POST":
         course = Course()
+        course.coordinator_id = current_user.id
         _apply_course_form(course, request.form)
         db.session.add(course)
         db.session.commit()

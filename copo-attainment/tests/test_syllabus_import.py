@@ -29,7 +29,7 @@ def test_parses_chemistry_syllabus():
 
     assert parsed.subject_code == "21CHE12/22"
     assert parsed.subject_name == "ENGINEERING CHEMISTRY"
-    assert parsed.semester == "I"
+    assert parsed.semester == "1"  # "I Semester" in the PDF, converted to a plain number
 
     assert [o.code for o in parsed.outcomes] == ["CO1", "CO2", "CO3", "CO4", "CO5"]
     assert "electrochemical energy systems" in parsed.outcomes[0].description
@@ -46,7 +46,7 @@ def test_parses_cs_syllabus_with_different_co_line_style():
 
     assert parsed.subject_code == "21CS33"
     assert parsed.subject_name == "ANALOG AND DIGITAL ELECTRONICS"
-    assert parsed.semester == "III"
+    assert parsed.semester == "3"  # "III Semester" in the PDF, converted to a plain number
 
     assert [o.code for o in parsed.outcomes] == ["CO1", "CO2", "CO3", "CO4", "CO5"]
     # This CO's description wraps across two lines in the PDF.

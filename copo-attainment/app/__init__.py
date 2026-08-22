@@ -60,6 +60,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     from app.routes.import_routes import import_bp
     from app.routes.auth_routes import auth_bp
     from app.routes.main_routes import main_bp
+    from app.routes.scrape_routes import scrape_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(setup_bp)
@@ -68,6 +69,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(results_bp)
     app.register_blueprint(import_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(scrape_bp)
 
     # Two things every request needs, ahead of whatever route-specific or
     # blueprint-level access check applies (@coordinator_required, or the

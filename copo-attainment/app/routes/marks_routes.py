@@ -18,6 +18,7 @@ from app.models import (
 from app.routes.structure_routes import COMPONENT_LABELS
 from app.models import COMPONENT_TYPES
 from app.roster_import import parse_roster_docx
+from app.exit_survey_import import parse_exit_survey_file
 from app.auth import coordinator_required
 
 marks_bp = Blueprint("marks", __name__, url_prefix="/courses/<int:course_id>/marks")
@@ -334,3 +335,125 @@ def _enter_external(course, component):
         "marks/external_grid.html", course=course, component=component,
         students=students, results_lookup=results_lookup,
     )
+
+
+# --------------------------------------------------- exit survey import
+
+def _get_exit_survey_component_or_redirect(course):
+    """The exit-survey questions must already exist (with their CO tags)
+    before import can match sheet columns to them - same "set up
+    Structure first" rule as manual entry. Returns (component, None) or
+    (None, redirect_response)."""
+    component = next((c for c in course.components if c.type == "EXIT_SURVEY"), None)
+    if component is None or not component.items:
+        flash("Set up the exit-survey question list on Structure first.", "error")
+        return None, redirect(url_for("structure.manage_component", course_id=course.id, comp_type="EXIT_SURVEY"))
+    return component, None
+
+
+@marks_bp.route("/EXIT_SURVEY/import", methods=["GET"])
+@coordinator_required
+def exit_survey_import_form(course_id):
+    course = _get_course_or_404(course_id)
+    component, redirect_response = _get_exit_survey_component_or_redirect(course)
+    if redirect_response:
+        return redirect_response
+    return render_template("marks/exit_survey_import.html", course=course)
+
+
+@marks_bp.route("/EXIT_SURVEY/import/parse", methods=["POST"])
+@coordinator_required
+def exit_survey_import_parse(course_id):
+    course = _get_course_or_404(course_id)
+    component, redirect_response = _get_exit_survey_component_or_redirect(course)
+    if redirect_response:
+        return redirect_response
+
+    uploaded = request.files.get("sheet")
+    if not uploaded or uploaded.filename == "":
+        flash("Choose a file first.", "error")
+        return redirect(url_for("marks.exit_survey_import_form", course_id=course.id))
+    if not uploaded.filename.lower().endswith((".xlsx", ".csv")):
+        flash("That doesn't look like a spreadsheet export - please upload the sheet as .xlsx or .csv.", "error")
+        return redirect(url_for("marks.exit_survey_import_form", course_id=course.id))
+
+    try:
+        parsed = parse_exit_survey_file(uploaded.stream, uploaded.filename, course.students, component.items)
+    except ImportError:
+        flash(
+            "The 'openpyxl' library isn't installed. Run 'pip install -r requirements.txt' "
+            "(with your virtual environment activated), restart the app, and try again.",
+            "error",
+        )
+        return redirect(url_for("marks.exit_survey_import_form", course_id=course.id))
+    except ValueError as e:
+        flash(str(e), "error")
+        return redirect(url_for("marks.exit_survey_import_form", course_id=course.id))
+    except Exception:
+        flash(
+            "Couldn't read that file - it may not be a real spreadsheet export, or it's corrupted. "
+            "You can still enter responses by hand.",
+            "error",
+        )
+        return redirect(url_for("marks.enter_component_marks", course_id=course.id, comp_type="EXIT_SURVEY"))
+
+    return render_template(
+        "marks/exit_survey_import_review.html", course=course,
+        parsed=parsed, students=course.students, items=component.items, ratings=EXIT_SURVEY_RATINGS,
+    )
+
+
+@marks_bp.route("/EXIT_SURVEY/import/confirm", methods=["POST"])
+@coordinator_required
+def exit_survey_import_confirm(course_id):
+    course = _get_course_or_404(course_id)
+    component, redirect_response = _get_exit_survey_component_or_redirect(course)
+    if redirect_response:
+        return redirect_response
+
+    valid_item_ids = {i.id for i in component.items}
+    valid_student_ids = {s.id for s in course.students}
+
+    item_for_col = {}
+    student_for_row = {}
+    for key, value in request.form.items():
+        if not value:
+            continue
+        if key.startswith("item_for_col_"):
+            try:
+                item_id = int(value)
+            except ValueError:
+                continue
+            if item_id in valid_item_ids:
+                item_for_col[key[len("item_for_col_"):]] = item_id
+        elif key.startswith("student_for_row_"):
+            try:
+                student_id = int(value)
+            except ValueError:
+                continue
+            if student_id in valid_student_ids:
+                student_for_row[key[len("student_for_row_"):]] = student_id
+
+    saved = 0
+    for key, value in request.form.items():
+        if not key.startswith("rating_") or not value:
+            continue
+        rating = value.strip().upper()
+        if rating not in EXIT_SURVEY_RATINGS:
+            continue
+        _, row_num, col_idx = key.split("_", 2)  # "rating_<row_number>_<col_index>"
+        student_id = student_for_row.get(row_num)
+        item_id = item_for_col.get(col_idx)
+        if not student_id or not item_id:
+            continue  # this row's student, or this column's question, was left unmatched - skip
+
+        existing = ExitSurveyResponse.query.filter_by(student_id=student_id, item_id=item_id).first()
+        if existing:
+            existing.rating = rating
+        else:
+            db.session.add(ExitSurveyResponse(student_id=student_id, item_id=item_id, rating=rating))
+        saved += 1
+
+    db.session.commit()
+    flash(f"Saved {saved} exit survey response(s).", "success")
+    return redirect(url_for("marks.enter_component_marks", course_id=course.id, comp_type="EXIT_SURVEY"))

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Import exit survey - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('marks.enter_component_marks', course_id=course.id, comp_type='EXIT_SURVEY') }}">&larr; Back to exit survey</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Import from a Google Sheets export</h3>
+        <p class="muted" style="margin-top:-6px;">
+            Upload the "Form responses" sheet from your Google Form (in Sheets: File &rarr; Download &rarr;
+            Microsoft Excel (.xlsx), or Comma Separated Values (.csv)). This will try to match each response to a
+            student on the roster and each column to one of this course's exit-survey questions - you'll get to
+            check and fix all of that on the next screen before anything is saved.
+        </p>
+        <form method="post" action="{{ url_for('marks.exit_survey_import_parse', course_id=course.id) }}" enctype="multipart/form-data">
+            <div class="field">
+                <label for="sheet">Responses file (.xlsx or .csv)</label>
+                <input type="file" id="sheet" name="sheet" accept=".xlsx,.csv" required>
+                <span class="hint">
+                    Works best when the sheet has a column with each student's USN and a Timestamp column, which is
+                    what Google Forms produces by default. Rating answers can be text ("Excellent", "Good", ...) or
+                    already A-E letters - anything not recognized gets flagged for you to fix by hand.
+                </span>
+            </div>
+            <div class="btn-row">
+                <button type="submit">Extract from file</button>
+                <a class="btn secondary" href="{{ url_for('marks.enter_component_marks', course_id=course.id, comp_type='EXIT_SURVEY') }}">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock %}

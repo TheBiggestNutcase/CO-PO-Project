@@ -19,6 +19,11 @@
         </p>
         {% else %}
         <p class="muted" style="margin-top:-6px;">A = Excellent, B = Good, C = Average, D = Poor, E = Very Poor. Only A/B count towards attainment. Leave blank for no response.</p>
+        {% if current_user.is_coordinator %}
+        <div class="btn-row" style="margin-top:0;">
+            <a class="btn secondary" href="{{ url_for('marks.exit_survey_import_form', course_id=course.id) }}">Import from Google Sheets instead &rarr;</a>
+        </div>
+        {% endif %}
         <form method="post">
             <div style="overflow-x:auto;">
             <table class="grid">

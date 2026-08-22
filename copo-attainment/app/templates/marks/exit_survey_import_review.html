@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Review exit survey import - {{ course.subject_code }}{% endblock %}
+{% block content %}
+    <a class="back-link" href="{{ url_for('marks.exit_survey_import_form', course_id=course.id) }}">&larr; Back to upload</a>
+    <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
+    {% include "courses/_nav.html" %}
+
+    <div class="card">
+        <h3>Review before importing</h3>
+        <p class="muted" style="margin-top:-6px;">
+            Nothing has been saved yet. For each column, pick which exit-survey question it is (or leave it as
+            "skip" to ignore that column entirely). For each row, fix the matched student if it's wrong, and fix
+            any rating that wasn't recognized. Unchecked/unmatched rows and columns are simply skipped on save.
+        </p>
+    </div>
+
+    {% if parsed.warnings %}
+    <div class="card warning">
+        <h3>Heads up</h3>
+        <ul style="margin: 0; padding-left: 18px;">
+            {% for w in parsed.warnings %}
+            <li>{{ w }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% for col in parsed.columns %}
+    {% set unmapped_values = col.value_counts | selectattr('letter', 'none') | list %}
+    {% if unmapped_values %}
+    <div class="card warning">
+        <h3 style="margin-top:0;">Quick-fix: {{ col.header }}</h3>
+        <p class="muted" style="margin-top:-4px; font-size:12px;">
+            These answers in this column weren't recognized. Pick what each one means and click Apply - that sets
+            every row below with that exact text, instead of fixing them one at a time.
+        </p>
+        <table class="plain">
+            <tr><th>Answer text</th><th>Rows</th><th>Maps to</th><th></th></tr>
+            {% for vc in unmapped_values %}
+            <tr>
+                <td style="text-align:left;">&ldquo;{{ vc.raw }}&rdquo;</td>
+                <td class="num">{{ vc.count }}</td>
+                <td>
+                    <select class="bulk-map-select">
+                        <option value=""></option>
+                        {% for r in ratings %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+                    </select>
+                </td>
+                <td>
+                    <button type="button" class="bulk-apply-btn" data-col="{{ col.col_index }}" data-raw="{{ vc.raw }}">Apply to all {{ vc.count }}</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <div class="card">
+        {% if not parsed.rows %}
+        <p class="empty">No response rows could be extracted from the file.</p>
+        {% else %}
+        <form method="post" action="{{ url_for('marks.exit_survey_import_confirm', course_id=course.id) }}">
+            <div style="overflow-x:auto;">
+            <table class="grid">
+                <tr>
+                    <th style="width:170px;">Student</th>
+                    <th style="width:120px;">As typed in sheet</th>
+                    {% for col in parsed.columns %}
+                    <th style="min-width:160px;">
+                        <div class="muted" style="font-weight:400; font-size:11px; margin-bottom:4px; white-space:normal;">{{ col.header }}</div>
+                        <select name="item_for_col_{{ col.col_index }}" style="width:100%;">
+                            <option value="">&mdash; skip this column &mdash;</option>
+                            {% for item in items %}
+                            <option value="{{ item.id }}" {{ 'selected' if col.suggested_item_id == item.id }}>
+                                {{ item.label }}{% if item.co_links %} ({{ item.co_links|map(attribute='co.code')|join(', ') }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </th>
+                    {% endfor %}
+                </tr>
+                {% for row in parsed.rows %}
+                <tr>
+                    <td>
+                        <select name="student_for_row_{{ row.row_number }}" style="width:100%;">
+                            <option value="">&mdash; skip this row &mdash;</option>
+                            {% for student in students %}
+                            <option value="{{ student.id }}" {{ 'selected' if row.matched_student_id == student.id }}>
+                                {{ student.usn }} - {{ student.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="label" style="font-size:12px;">{{ row.usn_raw or '(blank)' }}</td>
+                    {% for col in parsed.columns %}
+                    {% set cell = row.cells.get(col.col_index) %}
+                    <td>
+                        <select name="rating_{{ row.row_number }}_{{ col.col_index }}" class="rating-cell"
+                                data-col="{{ col.col_index }}" data-raw="{{ cell.raw if cell else '' }}" style="width:64px;">
+                            <option value="" {{ 'selected' if not cell or not cell.letter }}></option>
+                            {% for r in ratings %}
+                            <option value="{{ r }}" {{ 'selected' if cell and cell.letter == r }}>{{ r }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if cell and cell.raw and not cell.letter %}
+                        <div class="muted" style="font-size:11px;">&ldquo;{{ cell.raw }}&rdquo; not recognized</div>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
+            </div>
+            <div class="btn-row">
+                <button type="submit">Save imported responses</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+
+    <script>
+        document.querySelectorAll('.bulk-apply-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var tr = btn.closest('tr');
+                var col = btn.dataset.col;
+                var raw = btn.dataset.raw;
+                var letter = tr.querySelector('.bulk-map-select').value;
+                var applied = 0;
+                document.querySelectorAll('.rating-cell[data-col="' + col + '"]').forEach(function (sel) {
+                    if (sel.dataset.raw === raw) {
+                        sel.value = letter;
+                        applied++;
+                    }
+                });
+                btn.textContent = 'Applied to ' + applied;
+                btn.disabled = true;
+            });
+        });
+    </script>
+{% endblock %}

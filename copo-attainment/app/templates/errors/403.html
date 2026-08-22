@@ -3,7 +3,7 @@
 {% block content %}
     <h1>Not allowed</h1>
     <p class="subtitle">
-        {% if current_user.is_authenticated and not current_user.is_coordinator %}
+        {% if current_user.is_authenticated and current_user.is_teacher %}
         Your account doesn't have access to this - Teacher accounts can only enter marks and view results for
         courses they've been assigned to. If you think this is wrong, ask your Unit Coordinator to check your
         course assignment.
@@ -11,5 +11,9 @@
         You don't have permission to view this page.
         {% endif %}
     </p>
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <a class="btn" href="{{ url_for('auth.manage_users') }}">Back to users</a>
+    {% else %}
     <a class="btn" href="{{ url_for('setup.list_courses') }}">Back to courses</a>
+    {% endif %}
 {% endblock %}

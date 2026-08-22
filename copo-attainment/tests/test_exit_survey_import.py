@@ -12,7 +12,8 @@ import pytest
 
 from app import create_app
 from app.exit_survey_import import parse_exit_survey_file
-from app.models import AssessmentItem, Course, CourseOutcome, ExitSurveyResponse, Student
+from app.extensions import db
+from app.models import AssessmentItem, Course, CourseOutcome, ExitSurveyResponse, Student, User, ROLE_COORDINATOR
 
 
 # --------------------------------------------------------------- parser
@@ -239,11 +240,20 @@ def test_xlsx_export_parses_the_same_way_as_csv():
 
 @pytest.fixture()
 def client():
+    """A logged-in Unit Coordinator's test client. There's no bootstrap
+    route anymore (the one Admin account is created from env vars, not a
+    web form - see ensure_admin_account in app/migrations.py), so this
+    creates the Coordinator directly and logs in for real through /login."""
     app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
     with app.app_context():
+        coordinator = User(username="Test Coordinator", display_name="Test Coordinator", role=ROLE_COORDINATOR)
+        coordinator.set_password("testpass123")
+        db.session.add(coordinator)
+        db.session.commit()
+
         test_client = app.test_client()
-        test_client.post("/setup-coordinator", data={
-            "name": "Test Coordinator", "password": "testpass123", "confirm_password": "testpass123",
+        test_client.post("/login", data={
+            "name": "Test Coordinator", "password": "testpass123",
         }, follow_redirects=True)
         yield test_client
 

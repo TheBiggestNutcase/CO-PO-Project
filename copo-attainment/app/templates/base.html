@@ -8,7 +8,7 @@
 </head>
 <body>
     <header class="topbar">
-        <a class="brand" href="{{ url_for('setup.list_courses') }}">CO-PO Attainment</a>
+        <a class="brand" href="{{ url_for('auth.manage_users') if current_user.is_authenticated and current_user.is_admin else url_for('setup.list_courses') }}">CO-PO Attainment</a>
         {% if course %}
         <nav>
             {% if current_user.is_authenticated and current_user.is_coordinator %}
@@ -21,8 +21,15 @@
         {% endif %}
         {% if current_user.is_authenticated %}
         <div class="topbar-user">
-            <span class="muted">{{ current_user.display_name }} &middot; {{ 'Unit Coordinator' if current_user.is_coordinator else 'Teacher' }}</span>
-            {% if current_user.is_coordinator %}
+            <span class="muted">{{ current_user.display_name }} &middot;
+                {% if current_user.is_admin %}Admin
+                {% elif current_user.is_coordinator %}Unit Coordinator
+                {% else %}Teacher
+                {% endif %}
+            </span>
+            {% if current_user.is_admin %}
+            <a href="{{ url_for('auth.manage_users') }}" class="{{ 'active' if request.endpoint == 'auth.manage_users' }}">Users</a>
+            {% elif current_user.is_coordinator %}
             <a href="{{ url_for('auth.manage_teachers') }}" class="{{ 'active' if request.endpoint == 'auth.manage_teachers' }}">Teachers</a>
             {% endif %}
             <form method="post" action="{{ url_for('auth.logout') }}" style="display:inline;">

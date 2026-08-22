@@ -34,7 +34,7 @@ branch directly in step 3 - either works.
 ## 3. Create the Render web service
 
 1. Go to [render.com](https://render.com) and sign up.
-2. **New +** -> **Web Service** -> connect this GitHub repo.
+2. **New +** → **Web Service** → connect this GitHub repo.
 3. Render should auto-detect the `Dockerfile` and offer **Docker** as the
    runtime. If it defaults to something else, set the runtime to Docker
    by hand.
@@ -43,16 +43,24 @@ branch directly in step 3 - either works.
    `attainment template.xlsx` sitting at the true repo root next to this
    folder) - without this, Render looks for the Dockerfile at the repo
    root and the build fails with "open Dockerfile: no such file or
-   directory". This field is under Settings -> Build & Deploy if you're
+   directory". This field is under Settings → Build & Deploy if you're
    configuring an existing service rather than creating a new one.
 5. Pick the **Free** instance type.
-6. Under **Environment**, add two variables:
-   - `DATABASE_URL` -> the Neon connection string from step 1
-   - `SECRET_KEY` -> any long random string (e.g. run
+6. Under **Environment**, add four variables:
+   - `DATABASE_URL` → the Neon connection string from step 1
+   - `SECRET_KEY` → any long random string (e.g. run
      `python3 -c "import secrets; print(secrets.token_hex(32))"`
      locally and paste the output). This signs login sessions - don't
      skip it and don't reuse the placeholder that's in the source code,
      or anyone who reads the repo could forge a login.
+   - `ADMIN_NAME` → the name for the one Admin account (what you'll log
+     in with - e.g. your own name).
+   - `ADMIN_PASSWORD` → a real password for it. There's no public "create
+     an account" page in this app on purpose (anyone hitting a public
+     URL could otherwise claim it) - the Admin account only ever gets
+     created from these two env vars, once, the first time the app boots
+     with both set. Safe to leave set permanently: it's a no-op on every
+     later boot once the Admin already exists.
 7. Deploy. The first build installs Chromium + Tesseract + all the Python
    deps, so expect it to take several minutes - later deploys are faster
    since layers are cached.
@@ -61,8 +69,18 @@ branch directly in step 3 - either works.
 
 On first request, the app behaves exactly like a fresh local install: it
 creates all tables in the new Postgres database automatically, then
-redirects to the one-time coordinator setup screen. Set up the
-coordinator account there.
+creates the Admin account from `ADMIN_NAME`/`ADMIN_PASSWORD` if it
+doesn't exist yet. Log in as Admin, then use the Users page to add
+Coordinator and Teacher accounts - Coordinators then set up their own
+courses and can add/assign Teacher accounts from each course's Teachers
+page, same as before.
+
+**If you're updating an existing deployment** (one that already has a
+Coordinator account from the old setup screen): that Coordinator keeps
+working exactly as before - nothing about their login changes. Just add
+`ADMIN_NAME`/`ADMIN_PASSWORD` to the existing service's env vars and
+redeploy; the Admin account gets created alongside the Coordinator that's
+already there, it doesn't replace anything.
 
 ## 5. Things worth knowing about the free tier
 

@@ -11,7 +11,8 @@ import os
 import pytest
 
 from app import create_app
-from app.models import Course, CourseOutcome, ProgramOutcome, ExternalResult
+from app.extensions import db
+from app.models import Course, CourseOutcome, ProgramOutcome, ExternalResult, User, ROLE_COORDINATOR
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -19,15 +20,22 @@ FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 @pytest.fixture()
 def client():
     """A logged-in Unit Coordinator's test client. Every route in this file
-    was written/tested before login existed, so we bootstrap the one-time
-    coordinator account and log in before handing back the client - without
+    was written/tested before login existed, so we create a Coordinator
+    account directly and log in before handing back the client - without
     this, the app's global before_request would bounce every request here
-    to the setup/login screen instead of the route under test."""
+    to the login screen instead of the route under test. (There's no
+    bootstrap route anymore - the one Admin account is created from env
+    vars, not a web form - see ensure_admin_account in app/migrations.py.)"""
     app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
     with app.app_context():
+        coordinator = User(username="Test Coordinator", display_name="Test Coordinator", role=ROLE_COORDINATOR)
+        coordinator.set_password("testpass123")
+        db.session.add(coordinator)
+        db.session.commit()
+
         test_client = app.test_client()
-        test_client.post("/setup-coordinator", data={
-            "name": "Test Coordinator", "password": "testpass123", "confirm_password": "testpass123",
+        test_client.post("/login", data={
+            "name": "Test Coordinator", "password": "testpass123",
         }, follow_redirects=True)
         yield test_client
 

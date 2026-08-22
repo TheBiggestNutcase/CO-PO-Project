@@ -41,6 +41,17 @@ def create_app(test_config: dict | None = None) -> Flask:
         SECRET_KEY=os.environ.get("SECRET_KEY", "dev-only-secret-key-change-if-this-ever-leaves-localhost"),
         SQLALCHEMY_DATABASE_URI=database_url,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        # The one Admin account is created from these on startup if it
+        # doesn't exist yet - see ensure_admin_account() below and
+        # DEPLOYMENT.md. No default fallback here (unlike SECRET_KEY):
+        # None means "the env var isn't set, so no Admin gets created" -
+        # deliberately not defaulted to "", since this app can sit on a
+        # public URL and that'd be indistinguishable from "ADMIN_PASSWORD
+        # was set to an empty string on purpose" (a blank password is a
+        # supported choice everywhere else in this app, so it has to stay
+        # a real option here too, not accidentally forbidden).
+        ADMIN_NAME=os.environ.get("ADMIN_NAME"),
+        ADMIN_PASSWORD=os.environ.get("ADMIN_PASSWORD"),
     )
 
     if test_config:
@@ -53,10 +64,11 @@ def create_app(test_config: dict | None = None) -> Flask:
     with app.app_context():
         # Import models here so they're registered on `db` before create_all.
         from app import models  # noqa: F401
-        from app.migrations import ensure_columns
+        from app.migrations import ensure_columns, ensure_admin_account
 
         db.create_all()
         ensure_columns(db)
+        ensure_admin_account(db, app.config["ADMIN_NAME"], app.config["ADMIN_PASSWORD"])
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -81,26 +93,17 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(scrape_bp)
 
-    # Two things every request needs, ahead of whatever route-specific or
-    # blueprint-level access check applies (@coordinator_required, or the
-    # coordinator-or-assigned-teacher before_request hooks in
-    # marks_routes.py/results_routes.py):
-    # (1) if nobody has an account yet, force the one-time coordinator
-    #     setup screen instead of letting an unset-up app be used at all;
-    # (2) otherwise, require login for everything except the login/setup
-    #     pages themselves and static assets. This is the safety net that
-    #     catches any route that forgot its own auth decorator.
+    # Every request needs to be logged in, except the login page itself
+    # and static assets - this is the safety net that catches any route
+    # that forgot its own auth decorator. There's deliberately no
+    # "nobody has an account yet" bootstrap path here anymore - the one
+    # Admin account is created out-of-band from ADMIN_NAME/ADMIN_PASSWORD
+    # (see ensure_admin_account() above), not through a public web form.
     @app.before_request
     def _require_login():
-        from app.models import User
-
         if request.endpoint is None or request.endpoint == "static":
             return None
-        if User.query.count() == 0:
-            if request.endpoint != "auth.setup_coordinator":
-                return redirect(url_for("auth.setup_coordinator"))
-            return None
-        if not current_user.is_authenticated and request.endpoint not in ("auth.login", "auth.setup_coordinator"):
+        if not current_user.is_authenticated and request.endpoint != "auth.login":
             return redirect(url_for("auth.login", next=request.path))
         return None
 

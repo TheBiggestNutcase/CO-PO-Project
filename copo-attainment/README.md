@@ -25,11 +25,14 @@ automatically instead of hand-wiring spreadsheet formulas.
 - Import from syllabus: upload a syllabus PDF and it pre-fills a new
   course's subject code/name and Course Outcomes for you to review and
   edit before anything is saved (see below).
-- Accounts and roles: one **Unit Coordinator** account (you) sets up
-  everything - COs, POs, mapping, targets, assessment structure, and the
-  roster - and can create **Teacher** accounts for colleagues who teach a
-  section with you. A Teacher only enters marks and views results, and
-  only for the course(s) you've explicitly assigned them to (see below).
+- Accounts and roles: one **Admin** account manages who has access at
+  all - adding/removing **Unit Coordinator** and **Teacher** accounts -
+  without touching course data itself. A **Unit Coordinator** sets up
+  everything for their own course(s) - COs, POs, mapping, targets,
+  assessment structure, and the roster - and can also create **Teacher**
+  accounts for colleagues who teach a section with them. A Teacher only
+  enters marks and views results, and only for the course(s) they've
+  explicitly been assigned to (see below).
 
 A **Course** represents one section's offering of a subject (e.g.
 "21CS33, Section B") - if you teach the same subject to multiple
@@ -69,28 +72,40 @@ just delete that file.
 
 ## Accounts and roles
 
-The very first time you open the app, there are no accounts yet, so
-you're taken straight to a one-time **"set up your account"** screen -
-whatever name/password you pick there becomes the **Unit Coordinator**
-account. There's exactly one of these; it's the only account that can
-create/edit courses, set COs/POs/targets/mapping, define the assessment
-structure, and manage the student roster.
+There are three roles: **Admin** (account governance only - adds/removes
+Coordinator and Teacher accounts, doesn't touch course data), **Unit
+Coordinator** (sets up and runs their own course(s) end to end), and
+**Teacher** (enters marks and views results, only for the course(s)
+they've been assigned to).
+
+There is exactly one Admin account, and there's deliberately no "create
+an account" page anywhere in the app for it - on a deployment that's
+reachable from the public internet, a page like that would let whoever
+gets there first claim the account. Instead it's created once from the
+`ADMIN_NAME`/`ADMIN_PASSWORD` environment variables the first time the
+app boots with both set (see `DEPLOYMENT.md`, or for local use, export
+them yourself before running `python run.py` - or just run
+`python3 add_test_users.py` for a ready-made local test Admin/Coordinator/
+Teacher). Once logged in, the Admin adds Coordinator and Teacher accounts
+from the **Users** page (top-right).
 
 You log in with your **name**, not a separate username - it's matched
 case-insensitively, so "Arushi Arunkumar" and "arushi arunkumar" both
 work. A password can be left blank (fine for a personal/local-network
 tool); if you do set one, it has to match exactly.
 
-From the **Teachers** page (top-right, coordinator only) you can create
-**Teacher** accounts for colleagues who teach a section alongside you,
-and tick which specific course(s) each one should see. A Teacher account
-can only enter marks and view results, and only for the course(s)
-you've assigned - everything else (including courses they're not
-assigned to) is off-limits. Since login is by name, each account needs
-a distinct name - the form won't let you add a second "Priya Rao".
-There's no self-service "forgot password" flow, since this isn't a
-hosted service - if a teacher forgets their password, reset it for them
-from the Teachers page.
+A Coordinator additionally has their own **Teachers** page (top-right,
+coordinator only) to create **Teacher** accounts for colleagues who teach
+a section alongside them, and tick which specific course(s) each one
+should see - this overlaps with what Admin can do on purpose: Admin
+handles an account's existence, Coordinator handles which courses a
+Teacher sees. A Teacher account can only enter marks and view results,
+and only for the course(s) it's been assigned - everything else
+(including courses it's not assigned to) is off-limits. Since login is
+by name, each account needs a distinct name - the form won't let you add
+a second "Priya Rao". There's no self-service "forgot password" flow,
+since this isn't a hosted service - if someone forgets their password,
+reset it for them from the Users (Admin) or Teachers (Coordinator) page.
 
 **Running on your local network:** since this still runs on your own
 Mac rather than being deployed anywhere, a teacher reaches it the same
@@ -209,10 +224,12 @@ worked example using the exact arithmetic from the original spreadsheet.
 -> POs -> mapping -> structure -> roster -> marks -> results, plus the
 syllabus-import and roster-import upload/review/confirm flows) through
 Flask's test client, logged in as the Coordinator. `tests/test_auth.py`
-covers the account/role side specifically: first-run bootstrap, login/
-logout, that Coordinator-only routes reject a Teacher with a 403, and
+covers the account/role side specifically: the Admin env-var bootstrap,
+login/logout, that Coordinator-only routes reject a Teacher with a 403,
 that a Teacher can only reach marks entry/results for the course(s)
-they've been assigned to. `tests/test_syllabus_import.py` and
+they've been assigned to, and that Admin can add/remove Coordinator and
+Teacher accounts but is itself blocked from course data.
+`tests/test_syllabus_import.py` and
 `tests/test_roster_import.py` check the PDF/Word parsers directly against
 real sample documents.
 
@@ -237,11 +254,12 @@ deleted/reordered over time).
 app/
   __init__.py       - Flask app factory
   extensions.py     - the shared SQLAlchemy db + Flask-Login objects
-  auth.py           - role-enforcement decorators (coordinator_required, ...)
+  auth.py           - role-enforcement decorators (coordinator_required, admin_required, ...)
   models.py         - the data model (Course, CO, PO, mapping, marks, User, ...)
+  migrations.py     - startup-time schema upgrades + ensure_admin_account()
   engine.py         - the calculation engine (pure Python, unit-tested)
   routes/
-    auth_routes.py       - login, first-run coordinator setup, teacher management
+    auth_routes.py       - login, admin user management, teacher management
     setup_routes.py       - courses, COs, POs, CO-PO mapping
     structure_routes.py   - assessment item/question structure
     marks_routes.py       - student roster + marks/response entry

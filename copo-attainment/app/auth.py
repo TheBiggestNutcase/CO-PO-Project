@@ -5,6 +5,9 @@ Role-enforcement helpers, layered on top of Flask-Login.
                              a Coordinator-only view sits in an otherwise
                              shared blueprint (setup_routes.py, plus the
                              roster-management routes inside marks_routes.py).
+  @admin_required          - Admin only (account governance - adding/
+                             removing Coordinator and Teacher accounts).
+                             See auth_routes.py's manage_users/delete_user.
 
 Redirects to the login page if nobody's logged in at all (reusing
 Flask-Login's own "you need to log in first" flow), and 403s if someone's
@@ -29,6 +32,17 @@ def coordinator_required(view):
         if not current_user.is_authenticated:
             return current_app.login_manager.unauthorized()
         if not current_user.is_coordinator:
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def admin_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return current_app.login_manager.unauthorized()
+        if not current_user.is_admin:
             abort(403)
         return view(*args, **kwargs)
     return wrapped

@@ -26,6 +26,10 @@ def _get_course_or_404(course_id):
 
 @setup_bp.route("/")
 def list_courses():
+    if current_user.is_admin:
+        # Admin doesn't manage course data at all - its home is the user
+        # management page, not an always-empty course list.
+        return redirect(url_for("auth.manage_users"))
     query = Course.query.order_by(Course.academic_year.desc(), Course.subject_code)
     if current_user.is_coordinator:
         courses = query.all()

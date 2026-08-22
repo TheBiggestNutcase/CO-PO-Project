@@ -32,13 +32,25 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from app.extensions import db
 
-# The two roles: the Unit Coordinator sets everything up (COs, POs,
-# mapping, targets, assessment structure, roster) - the Teacher's job is
-# narrower, entering marks and viewing results for courses they've been
-# assigned to. See app/auth.py for how these are enforced.
+# The three roles:
+#   Admin       - account governance only. Adds/removes Coordinator and
+#                 Teacher accounts (see /admin/users in auth_routes.py).
+#                 Doesn't touch course data itself. There is exactly one
+#                 Admin, created once from the ADMIN_NAME/ADMIN_PASSWORD
+#                 env vars on app startup (see ensure_admin_account in
+#                 app/migrations.py) - there's no web form that creates
+#                 one, deliberately, since this app can now sit on a
+#                 public URL and a public "claim the admin account" page
+#                 would be a real hole.
+#   Coordinator - sets everything up (COs, POs, mapping, targets,
+#                 assessment structure, roster) for the courses they run.
+#   Teacher     - narrower: entering marks and viewing results for
+#                 courses they've been assigned to.
+# See app/auth.py for how these are enforced.
+ROLE_ADMIN = "admin"
 ROLE_COORDINATOR = "coordinator"
 ROLE_TEACHER = "teacher"
-ROLES = (ROLE_COORDINATOR, ROLE_TEACHER)
+ROLES = (ROLE_ADMIN, ROLE_COORDINATOR, ROLE_TEACHER)
 
 
 class Course(db.Model):
@@ -296,11 +308,10 @@ class ExitSurveyResponse(db.Model):
 
 
 class User(db.Model, UserMixin):
-    """A login for this app. There's exactly one Unit Coordinator (the
-    faculty member running the tool day to day, created on first launch -
-    see app/routes/auth_routes.py's setup_coordinator) plus however many
-    Teacher accounts the coordinator creates and assigns to specific
-    courses via CourseTeacher.
+    """A login for this app: exactly one Admin (account governance -
+    see ROLE_ADMIN above), however many Coordinator accounts run their
+    own courses day to day, and however many Teacher accounts a
+    Coordinator assigns to specific courses via CourseTeacher.
 
     UserMixin (from Flask-Login) supplies is_authenticated/is_active/
     is_anonymous/get_id so this plugs straight into login_user()/
@@ -337,12 +348,21 @@ class User(db.Model, UserMixin):
         return cls.query.filter(db.func.lower(cls.display_name) == name.lower()).first()
 
     @property
+    def is_admin(self):
+        return self.role == ROLE_ADMIN
+
+    @property
     def is_coordinator(self):
         return self.role == ROLE_COORDINATOR
 
+    @property
+    def is_teacher(self):
+        return self.role == ROLE_TEACHER
+
     def can_access_course(self, course_id):
         """Coordinators can access every course; teachers only the ones
-        they've been explicitly assigned to."""
+        they've been explicitly assigned to; Admin doesn't manage course
+        data at all, so this is always False for an Admin account."""
         if self.is_coordinator:
             return True
         return any(a.course_id == course_id for a in self.course_assignments)

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+    <h1>Users</h1>
+    <p class="subtitle">
+        Add or remove Unit Coordinator and Teacher accounts here. A Coordinator sets up and runs their own
+        course(s) end to end; a Teacher only enters marks and views results for the specific course(s) a
+        Coordinator assigns them to (from that course's Teachers page). There's exactly one Admin account
+        (yours) and it isn't managed from here.
+    </p>
+
+    <div class="card">
+        <h3>Add an account</h3>
+        <form method="post">
+            <input type="hidden" name="action" value="add_user">
+            <div class="field-row">
+                <div class="field">
+                    <label for="name">Name</label>
+                    <input type="text" id="name" name="name" placeholder="Nithin H M" required>
+                    <span class="hint">This is what they'll log in with (not case-sensitive).</span>
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password">
+                    <span class="hint">Can be left blank for local/personal use. Share this with them directly.</span>
+                </div>
+            </div>
+            <div class="field">
+                <label>Role</label>
+                <div style="display:flex; gap:16px;">
+                    <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
+                        <input type="radio" name="role" value="coordinator" style="width:auto;" required> Unit Coordinator
+                    </label>
+                    <label style="font-weight:400; display:flex; align-items:center; gap:6px;">
+                        <input type="radio" name="role" value="teacher" style="width:auto;"> Teacher
+                    </label>
+                </div>
+            </div>
+            <button type="submit">+ Add account</button>
+        </form>
+    </div>
+
+    {% if not users %}
+    <div class="card">
+        <p class="empty">No Coordinator or Teacher accounts yet.</p>
+    </div>
+    {% endif %}
+
+    {% for user in users %}
+    <div class="card">
+        <h3>{{ user.display_name }} <span class="muted" style="font-weight:400; font-size:13px;">&middot; {{ role_labels[user.role] }}</span></h3>
+
+        <div class="field-row">
+            <form method="post" style="flex:1;">
+                <input type="hidden" name="action" value="reset_password">
+                <input type="hidden" name="user_id" value="{{ user.id }}">
+                <div class="field-row">
+                    <div class="field">
+                        <label for="new_password_{{ user.id }}">Reset password</label>
+                        <input type="password" id="new_password_{{ user.id }}" name="new_password" placeholder="New password">
+                    </div>
+                </div>
+                <button type="submit" class="secondary">Reset password</button>
+            </form>
+            <form method="post" onsubmit="return confirm('Remove {{ user.display_name }}\'s account? They will no longer be able to log in.');">
+                <input type="hidden" name="action" value="delete">
+                <button type="submit" class="danger" formaction="{{ url_for('auth.delete_user', user_id=user.id) }}">Remove account</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+{% endblock %}

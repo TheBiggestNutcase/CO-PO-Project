@@ -10,18 +10,29 @@ import time
 import pytest
 
 from app import create_app
-from app.models import Course, ExternalResult, Student, User, ROLE_TEACHER
+from app.extensions import db
+from app.models import Course, ExternalResult, Student, User, ROLE_COORDINATOR, ROLE_TEACHER
 from app.vtu_scraper.parser import ScrapedSubjectRow
 from app.vtu_scraper.scraper import ScrapeOutcome, ScrapeRunResult
 
 
 @pytest.fixture()
 def client():
+    """A logged-in Unit Coordinator's test client. There's no bootstrap
+    route anymore (the one Admin account is created from env vars, not a
+    web form - see ensure_admin_account in app/migrations.py), so this
+    creates the Coordinator directly the same way tests/test_auth.py's
+    _make_coordinator does, then logs in for real through /login."""
     app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
     with app.app_context():
+        coordinator = User(username="Test Coordinator", display_name="Test Coordinator", role=ROLE_COORDINATOR)
+        coordinator.set_password("testpass123")
+        db.session.add(coordinator)
+        db.session.commit()
+
         test_client = app.test_client()
-        test_client.post("/setup-coordinator", data={
-            "name": "Test Coordinator", "password": "testpass123", "confirm_password": "testpass123",
+        test_client.post("/login", data={
+            "name": "Test Coordinator", "password": "testpass123",
         }, follow_redirects=True)
         yield test_client
 

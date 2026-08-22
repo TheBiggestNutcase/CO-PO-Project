@@ -14,6 +14,14 @@ actually in the database and ALTERs the table to add anything missing,
 so existing databases pick up new columns automatically the next time the
 app starts - no manual migration step, no data loss.
 
+`ensure_admin_account()` is a different kind of startup-time invariant,
+not a schema change: it makes sure exactly one Admin account exists,
+creating it from ADMIN_NAME/ADMIN_PASSWORD if one doesn't yet - see
+app/__init__.py for where it's called and DEPLOYMENT.md for the env vars.
+It lives here rather than in auth_routes.py because, like ensure_columns,
+it's "something that runs once at startup to bring an existing database
+in line," not a request-handling route.
+
 If this list grows large enough to become unwieldy, that's the signal to
 switch to Flask-Migrate/Alembic instead.
 """
@@ -59,3 +67,32 @@ def ensure_columns(db):
                     ),
                     {"description": description, "code": code},
                 )
+
+
+def ensure_admin_account(db, admin_name, admin_password):
+    """Creates the one Admin account from ADMIN_NAME/ADMIN_PASSWORD if
+    both are set and no Admin account exists yet. Does nothing otherwise
+    - in particular, does nothing if an Admin already exists (so this is
+    safe to call on every startup) and does nothing if the env vars
+    aren't set (so a deploy that forgot to set them just has no Admin
+    yet, rather than crashing or falling back to some default credentials
+    that would be a real hole on a public URL).
+
+    admin_password is checked with `is None`, not a truthiness check:
+    None means "ADMIN_PASSWORD isn't set at all" (see app/__init__.py),
+    but "" is a deliberately supported blank password (same as everywhere
+    else in this app), so it must still go through and create the
+    account rather than being treated as "unset."
+
+    Deliberately not exposed through any route/form - see the ROLE_ADMIN
+    comment in app/models.py for why."""
+    from app.models import User, ROLE_ADMIN  # local import: avoids a circular import with app/extensions.py
+
+    if not admin_name or admin_password is None:
+        return
+    if User.query.filter_by(role=ROLE_ADMIN).first() is not None:
+        return
+    admin = User(username=admin_name, display_name=admin_name, role=ROLE_ADMIN)
+    admin.set_password(admin_password)
+    db.session.add(admin)
+    db.session.commit()

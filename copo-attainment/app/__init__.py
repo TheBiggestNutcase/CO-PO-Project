@@ -25,11 +25,21 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     # Default config: a SQLite file that lives in instance/ so data
     # persists across restarts (this is our "save and resume" requirement).
+    # In production (Render, etc.) both of these are overridden by env
+    # vars - see DEPLOYMENT.md. SECRET_KEY especially: the hardcoded
+    # fallback below is fine for localhost only, since anyone who can read
+    # this source (i.e. anyone) could otherwise forge login sessions on a
+    # publicly reachable deployment that didn't set a real one.
     os.makedirs(app.instance_path, exist_ok=True)
     default_db_path = os.path.join(app.instance_path, "copo.db")
+    database_url = os.environ.get("DATABASE_URL", f"sqlite:///{default_db_path}")
+    # Some providers (Heroku-style) still hand out "postgres://" URLs;
+    # SQLAlchemy 2.x + psycopg2 require the "postgresql://" scheme.
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config.from_mapping(
-        SECRET_KEY="dev-only-secret-key-change-if-this-ever-leaves-localhost",
-        SQLALCHEMY_DATABASE_URI=f"sqlite:///{default_db_path}",
+        SECRET_KEY=os.environ.get("SECRET_KEY", "dev-only-secret-key-change-if-this-ever-leaves-localhost"),
+        SQLALCHEMY_DATABASE_URI=database_url,
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
     )
 

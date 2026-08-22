@@ -22,6 +22,7 @@ repo's own commit history) - a live first run against a real course
 roster is the way to confirm this still matches, and app/vtu_scraper's
 docstrings call out exactly which bits to fix if it doesn't.
 """
+import os
 import time
 
 from bs4 import BeautifulSoup
@@ -62,6 +63,16 @@ class VtuSession:
         options.unhandled_prompt_behavior = "ignore"
         if self._headless:
             options.add_argument("--headless=new")
+            # Required for headless Chrome running as root in a container
+            # (Docker deploys - see Dockerfile/DEPLOYMENT.md): without
+            # these, Chrome fails to start at all rather than just being
+            # slower. Harmless on a normal Mac/Windows dev machine too.
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--disable-gpu")
+        chrome_bin = os.environ.get("CHROME_BIN")
+        if chrome_bin:
+            options.binary_location = chrome_bin
         self.driver = webdriver.Chrome(options=options)
         self.driver.get(results_url)
 

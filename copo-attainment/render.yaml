@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: copo-attainment
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false  # set this by hand in the Render dashboard - see DEPLOYMENT.md

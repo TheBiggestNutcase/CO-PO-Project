@@ -9,6 +9,15 @@
     <h1>{{ course.subject_code }} - {{ course.subject_name }}</h1>
     {% include "courses/_nav.html" %}
 
+    <div class="btn-row" style="margin-top: 0;">
+        <a class="btn secondary" href="{{ url_for('results.export_xlsx', course_id=course.id) }}">
+            Export to Excel &darr;
+        </a>
+        <a class="btn secondary" href="{{ url_for('results.export_pdf', course_id=course.id) }}">
+            Export to PDF &darr;
+        </a>
+    </div>
+
     <div class="card">
         <h3>CO attainment</h3>
         <p class="muted" style="margin-top:-6px;">

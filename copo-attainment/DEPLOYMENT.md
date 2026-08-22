@@ -38,15 +38,22 @@ branch directly in step 3 - either works.
 3. Render should auto-detect the `Dockerfile` and offer **Docker** as the
    runtime. If it defaults to something else, set the runtime to Docker
    by hand.
-4. Pick the **Free** instance type.
-5. Under **Environment**, add two variables:
+4. **Set Root Directory to `copo-attainment`.** This repo's git root is
+   one level above the app itself (there's a leftover
+   `attainment template.xlsx` sitting at the true repo root next to this
+   folder) - without this, Render looks for the Dockerfile at the repo
+   root and the build fails with "open Dockerfile: no such file or
+   directory". This field is under Settings -> Build & Deploy if you're
+   configuring an existing service rather than creating a new one.
+5. Pick the **Free** instance type.
+6. Under **Environment**, add two variables:
    - `DATABASE_URL` -> the Neon connection string from step 1
    - `SECRET_KEY` -> any long random string (e.g. run
      `python3 -c "import secrets; print(secrets.token_hex(32))"`
      locally and paste the output). This signs login sessions - don't
      skip it and don't reuse the placeholder that's in the source code,
      or anyone who reads the repo could forge a login.
-6. Deploy. The first build installs Chromium + Tesseract + all the Python
+7. Deploy. The first build installs Chromium + Tesseract + all the Python
    deps, so expect it to take several minutes - later deploys are faster
    since layers are cached.
 

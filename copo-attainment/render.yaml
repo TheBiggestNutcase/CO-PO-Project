@@ -3,7 +3,12 @@ services:
     name: copo-attainment
     runtime: docker
     plan: free
-    dockerfilePath: ./Dockerfile
+    # The git repo root (COPO-Project) is one level above this app
+    # (copo-attainment/) - rootDir tells Render to treat this subfolder
+    # as the build context. dockerfilePath below is then relative to
+    # THAT directory, not the repo root.
+    rootDir: copo-attainment
+    dockerfilePath: Dockerfile
     envVars:
       - key: SECRET_KEY
         generateValue: true
